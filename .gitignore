@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# venv
+.venv/
+venv/
+
+# data & artifacts (do not commit market data or trial DBs)
+data/
+*.parquet
+*.duckdb
+*.db
+*.sqlite
+
+# secrets
+.env
+*.key
+
+# OS
+Thumbs.db
+.DS_Store

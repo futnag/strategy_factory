@@ -1,0 +1,146 @@
+"""試行レジストリ（事前登録ゲート付き・研究監視）。
+
+統合ナレッジベース §2, §5.3 / DP7, DP10 の実装。
+- 事前登録（仮説＋経済的合理性）なしに結果を記録できない（a priori 理論の強制）。
+- 試行は追記専用：削除・改竄 API を提供しない（"Complete / Coerced" の担保）。
+- scope 単位で試行数 K と Sharpe 分散を集計し、DSR を自動算出できる。
+
+ソロ運用での最大の敵＝自己 p-hacking を「意志」でなく「コード」で封じる中核部品。
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+import uuid
+from datetime import datetime, timezone
+from typing import Optional
+
+import numpy as np
+
+from . import dsr as _dsr
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS trials (
+    trial_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid               TEXT UNIQUE NOT NULL,
+    scope              TEXT NOT NULL,
+    strategy_id        TEXT,
+    hypothesis         TEXT NOT NULL,
+    economic_rationale TEXT NOT NULL,
+    params_json        TEXT,
+    status             TEXT NOT NULL,
+    sharpe             REAL,
+    n_obs              INTEGER,
+    skew               REAL,
+    kurt               REAL,
+    returns_hash       TEXT,
+    extra_json         TEXT,
+    preregistered_at   TEXT NOT NULL,
+    completed_at       TEXT
+);
+"""
+
+_MIN_TEXT = 8  # 仮説・根拠の最小文字数（空・形式的記入を拒否）
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class TrialRegistry:
+    """SQLite を背後に持つ改竄不能な試行台帳。"""
+
+    def __init__(self, db_path: str = "trials.db"):
+        self._conn = sqlite3.connect(db_path)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute(_SCHEMA)
+        self._conn.commit()
+
+    # --- 事前登録ゲート -------------------------------------------------
+    def preregister(self, *, scope: str, hypothesis: str,
+                    economic_rationale: str, strategy_id: Optional[str] = None,
+                    params: Optional[dict] = None) -> str:
+        """試行を事前登録し uuid を返す。仮説・経済的合理性は必須（a priori）。"""
+        if len(hypothesis.strip()) < _MIN_TEXT:
+            raise ValueError("hypothesis is required (state the a priori theory)")
+        if len(economic_rationale.strip()) < _MIN_TEXT:
+            raise ValueError("economic_rationale is required (state the a priori theory)")
+        tid = str(uuid.uuid4())
+        self._conn.execute(
+            "INSERT INTO trials (uuid, scope, strategy_id, hypothesis, "
+            "economic_rationale, params_json, status, preregistered_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (tid, scope, strategy_id, hypothesis.strip(),
+             economic_rationale.strip(),
+             json.dumps(params or {}, ensure_ascii=False),
+             "preregistered", _now()),
+        )
+        self._conn.commit()
+        return tid
+
+    # --- 結果記録（追記専用・一度きり） --------------------------------
+    def record_result(self, trial_uuid: str, *, sharpe: float, n_obs: int,
+                      skew: float, kurt: float,
+                      returns_hash: Optional[str] = None,
+                      extra: Optional[dict] = None) -> None:
+        """事前登録済み試行に結果を1回だけ記録。未登録・二重記録は拒否。"""
+        row = self._conn.execute(
+            "SELECT status FROM trials WHERE uuid=?", (trial_uuid,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"trial not preregistered: {trial_uuid}")
+        if row["status"] != "preregistered":
+            raise ValueError("result already recorded (trials are immutable)")
+        self._conn.execute(
+            "UPDATE trials SET status='completed', sharpe=?, n_obs=?, skew=?, "
+            "kurt=?, returns_hash=?, extra_json=?, completed_at=? WHERE uuid=?",
+            (sharpe, n_obs, skew, kurt, returns_hash,
+             json.dumps(extra or {}, ensure_ascii=False), _now(), trial_uuid),
+        )
+        self._conn.commit()
+
+    # --- 集計（DSR 用） ------------------------------------------------
+    def trial_count(self, scope: str) -> int:
+        """scope 内の完了試行数 K（DSR の試行数）。"""
+        row = self._conn.execute(
+            "SELECT COUNT(*) AS k FROM trials WHERE scope=? AND status='completed'",
+            (scope,),
+        ).fetchone()
+        return int(row["k"])
+
+    def sharpe_variance(self, scope: str) -> float:
+        """scope 内の完了試行 Sharpe の分散（DSR の sr_variance）。試行<2 は 0。"""
+        rows = self._conn.execute(
+            "SELECT sharpe FROM trials WHERE scope=? AND status='completed' "
+            "AND sharpe IS NOT NULL", (scope,),
+        ).fetchall()
+        vals = [r["sharpe"] for r in rows]
+        if len(vals) < 2:
+            return 0.0
+        return float(np.var(vals, ddof=1))
+
+    def deflated_sharpe(self, trial_uuid: str) -> float:
+        """指定試行の DSR を、その scope の K と Sharpe 分散から自動算出。"""
+        row = self._conn.execute(
+            "SELECT scope, sharpe, n_obs, skew, kurt, status FROM trials "
+            "WHERE uuid=?", (trial_uuid,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(trial_uuid)
+        if row["status"] != "completed":
+            raise ValueError("trial has no recorded result")
+        scope = row["scope"]
+        return _dsr.deflated_sharpe_ratio(
+            sr=row["sharpe"], sr_variance=self.sharpe_variance(scope),
+            n_trials=self.trial_count(scope), n_obs=row["n_obs"],
+            skew=row["skew"], kurt=row["kurt"],
+        )
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def __enter__(self) -> "TrialRegistry":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()

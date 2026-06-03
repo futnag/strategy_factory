@@ -1,0 +1,17 @@
+[project]
+name = "invest-system"
+version = "0.0.1"
+description = "López de Prado–style financial ML system — validation harness first"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

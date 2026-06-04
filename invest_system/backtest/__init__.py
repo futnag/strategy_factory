@@ -4,5 +4,6 @@
 """
 
 from .cpcv_backtest import CPCVBacktestResult, cpcv_backtest
+from .cv_score import purged_cv_predict
 
-__all__ = ["CPCVBacktestResult", "cpcv_backtest"]
+__all__ = ["CPCVBacktestResult", "cpcv_backtest", "purged_cv_predict"]

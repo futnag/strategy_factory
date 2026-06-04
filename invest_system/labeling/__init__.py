@@ -4,6 +4,7 @@
 パス依存ラベルを生成する。``side`` を与えればメタラベリング（{0,1}）に対応。
 """
 
+from .meta_labeling import bet_size_from_prob, meta_labels, meta_position
 from .triple_barrier import (
     apply_pt_sl_on_t1,
     get_bins,
@@ -14,8 +15,11 @@ from .triple_barrier import (
 
 __all__ = [
     "apply_pt_sl_on_t1",
+    "bet_size_from_prob",
     "get_bins",
     "get_events",
     "get_vertical_barriers",
     "get_vol",
+    "meta_labels",
+    "meta_position",
 ]

@@ -1,7 +1,11 @@
 """bitbank データ取込（parse / fetch の DI）を検証。"""
 import pandas as pd
 
-from invest_system.data.sources.bitbank import fetch_trades, parse_trades
+from invest_system.data.sources.bitbank import (
+    fetch_trades,
+    parse_candlesticks,
+    parse_trades,
+)
 
 
 def test_parse_trades_schema_and_values():
@@ -51,3 +55,23 @@ def test_fetch_trades_with_injected_exchange():
     assert df.shape == (2, 3)
     assert df["price"].tolist() == [100.0, 102.0]
     assert df["side"].tolist() == ["buy", "sell"]
+
+
+def test_parse_candlesticks_schema_and_values():
+    raw = [
+        ["100", "110", "90", "105", "1.5", 1700000000000],
+        ["105", "120", "100", "115", "2.0", 1700014400000],  # +4h
+    ]
+    df = parse_candlesticks(raw)
+    assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+    assert df.shape == (2, 5)
+    assert df["close"].tolist() == [105.0, 115.0]
+    assert df["high"].tolist() == [110.0, 120.0]
+    assert df.index.tz is None                       # tz-naive UTC（パイプライン規約）
+    assert df.index.is_monotonic_increasing
+
+
+def test_parse_candlesticks_empty():
+    df = parse_candlesticks([])
+    assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+    assert df.shape == (0, 5)

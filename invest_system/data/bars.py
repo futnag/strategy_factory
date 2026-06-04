@@ -21,6 +21,17 @@ _BAR_COLUMNS = ["open", "high", "low", "close", "volume", "dollar",
                 "vwap", "n_ticks", "start_time"]
 
 
+def _naive_times(trades: pd.DataFrame) -> np.ndarray:
+    """バー時刻を tz-naive UTC に正規化（パイプライン全体が tz-naive 前提）。
+
+    parse_trades は tz-aware UTC を返すが、バーは候補足と同じ tz-naive に揃える。
+    """
+    idx = trades.index
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    return idx.to_numpy()
+
+
 def _aggregate(prices, vols, dollars, times, start, end) -> dict:
     seg_v = vols[start:end + 1]
     seg_d = dollars[start:end + 1]
@@ -47,7 +58,7 @@ def _threshold_bars(trades: pd.DataFrame, increments: np.ndarray,
     prices = trades["price"].to_numpy(dtype=float)
     vols = trades["volume"].to_numpy(dtype=float)
     dollars = prices * vols
-    times = trades.index.to_numpy()
+    times = _naive_times(trades)
     rows, idx = [], []
     csum = 0.0
     start = 0
@@ -127,7 +138,7 @@ def dollar_imbalance_bars(trades: pd.DataFrame, threshold: float,
     prices = trades["price"].to_numpy(dtype=float)
     vols = trades["volume"].to_numpy(dtype=float)
     dollars = prices * vols
-    times = trades.index.to_numpy()
+    times = _naive_times(trades)
     b = apply_tick_rule(prices) if sign_method == "tick" else _signed_flow(trades)
     signed = b * dollars
 

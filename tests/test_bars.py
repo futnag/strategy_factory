@@ -70,6 +70,15 @@ def test_dollar_imbalance_bars_negative_flow():
     assert bars.iloc[0]["imbalance"] < 0
 
 
+def test_bars_index_tz_naive_from_tzaware_trades():
+    # parse_trades は tz-aware を返すが、バーは tz-naive UTC に正規化される
+    idx = pd.date_range("2020-01-01", periods=6, freq="s", tz="UTC")
+    trades = pd.DataFrame({"price": [100, 101, 102, 101, 100, 101],
+                           "volume": [1.0] * 6, "side": ["buy"] * 6}, index=idx)
+    assert dollar_bars(trades, threshold=200).index.tz is None
+    assert dollar_imbalance_bars(trades, threshold=200).index.tz is None
+
+
 def test_dollar_imbalance_tick_sign_method():
     # side 無し → tick rule で符号付け（価格上昇 = 買い圧）
     trades = _trades([100, 101, 102, 103])

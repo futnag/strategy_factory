@@ -9,23 +9,23 @@ from .bitbank import (
     parse_transactions,
 )
 from .jquants import (
+    adjusted_close_col,
     fetch_daily_quotes,
     fetch_listed_info,
     fetch_statements,
-    get_id_token,
     parse_daily_quotes,
     parse_listed_info,
     parse_statements,
 )
 
 __all__ = [
+    "adjusted_close_col",
     "fetch_candlesticks",
     "fetch_daily_quotes",
     "fetch_listed_info",
     "fetch_statements",
     "fetch_trades",
     "fetch_transactions",
-    "get_id_token",
     "parse_candlesticks",
     "parse_daily_quotes",
     "parse_listed_info",

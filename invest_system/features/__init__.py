@@ -3,6 +3,12 @@
 設計書 §7 / DP2 に対応。まず分数階差分（記憶を保ちつつ定常化）を提供。
 """
 
+from .causal import (
+    causal_filter,
+    classify_features,
+    collider_bias_beta,
+    direction_score,
+)
 from .frac_diff import (
     find_min_d,
     frac_diff_d_table,
@@ -11,6 +17,10 @@ from .frac_diff import (
 )
 
 __all__ = [
+    "causal_filter",
+    "classify_features",
+    "collider_bias_beta",
+    "direction_score",
     "find_min_d",
     "frac_diff_d_table",
     "frac_diff_ffd",

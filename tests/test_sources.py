@@ -5,6 +5,7 @@ from invest_system.data.sources.bitbank import (
     fetch_trades,
     parse_candlesticks,
     parse_trades,
+    parse_transactions,
 )
 
 
@@ -75,3 +76,18 @@ def test_parse_candlesticks_empty():
     df = parse_candlesticks([])
     assert list(df.columns) == ["open", "high", "low", "close", "volume"]
     assert df.shape == (0, 5)
+
+
+def test_parse_transactions_schema_and_values():
+    raw = [
+        {"transaction_id": 1, "side": "buy", "price": "100.0",
+         "amount": "0.5", "executed_at": 1700000000000},
+        {"transaction_id": 2, "side": "sell", "price": "101.0",
+         "amount": "0.3", "executed_at": 1700000001000},
+    ]
+    df = parse_transactions(raw)
+    assert list(df.columns) == ["price", "volume", "side"]
+    assert df["price"].tolist() == [100.0, 101.0]
+    assert df["volume"].tolist() == [0.5, 0.3]
+    assert df["side"].tolist() == ["buy", "sell"]
+    assert df.index.is_monotonic_increasing

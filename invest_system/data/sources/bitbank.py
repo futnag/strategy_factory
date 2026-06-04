@@ -114,3 +114,37 @@ def fetch_candlesticks(pair: str = "btc_jpy", candle_type: str = "4hour",
         time.sleep(pause)
     out = pd.concat(frames).sort_index()
     return out[~out.index.duplicated(keep="first")]
+
+
+# --- 公開約定（tick, APIキー不要） ---------------------------------------
+def parse_transactions(transactions: list) -> pd.DataFrame:
+    """bitbank の約定配列を標準 trades DataFrame に変換（純関数）。
+
+    各要素は {'executed_at': ms, 'price': str, 'amount': str, 'side': 'buy'|'sell'}。
+    返り値は parse_trades と同形（index=DatetimeIndex(UTC), columns=[price, volume, side]）。
+    """
+    norm = [{"timestamp": t["executed_at"], "price": t["price"],
+             "amount": t["amount"], "side": t.get("side")} for t in transactions]
+    return parse_trades(norm)
+
+
+def fetch_transactions(pair: str = "btc_jpy", dates: Optional[list] = None, *,
+                       base_url: str = _PUBLIC_BASE, pause: float = 0.3,
+                       timeout: int = 30) -> pd.DataFrame:
+    """bitbank 公開APIから約定（tick）を日単位で取得（APIキー不要）。
+
+    dates は 'YYYYMMDD' のリスト（各日の全約定を返す）。複数日を時刻順に連結。
+    真のドルバー/インバランスバー/VPIN の構築に用いる。約定の重複時刻は保持する。
+    """
+    if not dates:
+        raise ValueError("dates（'YYYYMMDD' のリスト）を指定してください")
+    frames = []
+    for date in dates:
+        url = f"{base_url}/{pair}/transactions/{date}"
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            payload = json.load(resp)
+        if payload.get("success") != 1:
+            raise RuntimeError(f"bitbank API error ({date}): {payload}")
+        frames.append(parse_transactions(payload["data"]["transactions"]))
+        time.sleep(pause)
+    return pd.concat(frames).sort_index(kind="stable")

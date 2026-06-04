@@ -10,7 +10,8 @@ __pycache__/
 venv/
 
 # data & artifacts (do not commit market data or trial DBs)
-data/
+# NOTE: root-anchored (/data/) so it does NOT ignore the invest_system/data package
+/data/
 *.parquet
 *.duckdb
 *.db

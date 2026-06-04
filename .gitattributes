@@ -1,0 +1,25 @@
+# 改行コードをリポジトリ内で LF に正規化（Linux/macOS/Windows 間で一貫させる）
+* text=auto eol=lf
+
+# 主要なテキスト種別を明示的に LF 固定
+*.py     text eol=lf
+*.md     text eol=lf
+*.toml   text eol=lf
+*.txt    text eol=lf
+*.cfg    text eol=lf
+*.ini    text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+
+# バイナリ（正規化しない）
+*.parquet binary
+*.duckdb  binary
+*.db      binary
+*.sqlite  binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.pdf     binary
+*.gz      binary
+*.zip     binary

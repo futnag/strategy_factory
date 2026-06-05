@@ -37,6 +37,25 @@ from ...config import get_env
 _BASE = "https://api.jquants.com/v2"
 _CACHE = Path("data/jquants")
 
+# レート制限対応。公式上限（1分あたり）: Free=5, Light=60, Standard=120,
+# Premium=500。Free は約12秒に1回。さらに「大幅超過して撃ち続けると約5分
+# 完全遮断」されるため、呼び出し間隔の下限＋429時は長め(60秒〜)の待機で自衛する。
+# 環境変数で調整可:
+#   J_QUANTS_MIN_INTERVAL（秒, 既定12.5=Free安全側。Lightなら1, Standardなら0.5等）
+#   J_QUANTS_MAX_RETRIES（429/5xx の最大リトライ回数）
+_MIN_INTERVAL = float(get_env("J_QUANTS_MIN_INTERVAL", "12.5") or "12.5")
+_MAX_RETRIES = int(get_env("J_QUANTS_MAX_RETRIES", "5") or "5")
+_RETRY_CODES = {429, 500, 502, 503, 504}
+_last_call = [0.0]
+
+
+def _throttle() -> None:
+    """直前の呼び出しから _MIN_INTERVAL 秒空ける（レート上限の遵守）。"""
+    dt = time.monotonic() - _last_call[0]
+    if dt < _MIN_INTERVAL:
+        time.sleep(_MIN_INTERVAL - dt)
+    _last_call[0] = time.monotonic()
+
 # 数値化する列（V2略称＋V1フルネームの両対応で頑健に）。
 # V2略称はライブ /equities/bars/daily で確認済み:
 #   O/H/L/C(始高安終) UL/LL(制限値幅) Vo(出来高) Va(売買代金)
@@ -63,13 +82,32 @@ _DATE_COLS = ["Date", "DiscDate", "DisclosedDate", "CurrentPeriodEndDate",
 
 
 def _request(url: str, headers: dict, timeout: int = 60) -> dict:
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.load(resp)
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "ignore")[:500]
-        raise RuntimeError(f"J-Quants API HTTP {e.code}: {detail}") from e
+    """GET＋JSON。429/5xx は指数バックオフで自動リトライ（ペーシング付き）。"""
+    last_err = None
+    for attempt in range(_MAX_RETRIES + 1):
+        _throttle()
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.load(resp)
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code in _RETRY_CODES and attempt < _MAX_RETRIES:
+                ra = e.headers.get("Retry-After") if e.headers else None
+                # 429 は小刻み再試行が逆効果（遮断延長）。60秒〜と長めに待つ。
+                wait = (float(ra) if ra and str(ra).strip().isdigit()
+                        else min(300.0, 60.0 * 2 ** attempt))
+                time.sleep(wait)
+                continue
+            detail = e.read().decode("utf-8", "ignore")[:300]
+            raise RuntimeError(f"J-Quants API HTTP {e.code}: {detail}") from e
+        except urllib.error.URLError as e:
+            last_err = e
+            if attempt < _MAX_RETRIES:
+                time.sleep(min(30.0, 3.0 * 2 ** attempt))
+                continue
+            raise RuntimeError(f"J-Quants API network error: {e}") from e
+    raise RuntimeError(f"J-Quants API failed after retries: {last_err}")
 
 
 def _api_key(api_key: Optional[str] = None) -> str:

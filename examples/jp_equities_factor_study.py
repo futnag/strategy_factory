@@ -34,6 +34,11 @@ from invest_system.equities.factors import (  # noqa: E402
     value_quality_size_factors,
 )
 from invest_system.equities.backtest import long_short_returns  # noqa: E402
+from invest_system.equities.stability import (  # noqa: E402
+    pre_post_sharpe,
+    subperiod_sharpes,
+    time_decayed_sharpe,
+)
 from invest_system.validation.dsr import (  # noqa: E402
     sharpe_ratio,
     deflated_sharpe_ratio_from_returns,
@@ -41,14 +46,20 @@ from invest_system.validation.dsr import (  # noqa: E402
 
 # --- 設定（無料枠：2024-03-13〜2026-03-13 の範囲内）-----------------------
 # 無料枠は 5 req/分（≈12.5秒/回）。TOP_N 銘柄分の財務取得に TOP_N×12.5秒かかる
-# （初回のみ・以降キャッシュ）。Light(60/分)なら J_QUANTS_MIN_INTERVAL=1 で12倍速。
-START, END = "2024-06", "2026-02"
-TOP_N = int(get_env("J_EQ_TOP_N", "80") or "80")  # 既定80（無料枠で約20分）
+# （初回のみ・以降キャッシュ）。Standard(120/分)なら J_QUANTS_MIN_INTERVAL=0.7、
+# Light(60/分)なら =1 を環境変数で指定（Free 既定12.5）。
+# Standard データ窓 ≈ 2016-06〜現在（10年・遅延なし）。
+START = get_env("J_EQ_START", "2016-07") or "2016-07"
+END = get_env("J_EQ_END", "2026-05") or "2026-05"
+TOP_N = int(get_env("J_EQ_TOP_N", "300") or "300")  # 既定300（Standardで約6分）
 QUANTILE = 0.2         # ロング/ショート各20%
 COSTS_BPS = 15.0       # 片道15bps（東証の現実的な往復コスト目安）
 LAG_DAYS = 1           # 開示当日は使わない（場中開示への保守措置）
 MIN_MONTHS = 8         # Sharpe算出に要する最小月数
-MIN_NAMES = 12         # 1断面で建玉に要する最小有効銘柄数（小ユニバース対応）
+MIN_NAMES = 20         # 1断面で建玉に要する最小有効銘柄数
+MIN_OBS_UNIV = 24      # ユニバース採用に要する最小流動性観測月数
+HALFLIFE = 36.0        # 時間減衰Sharpeの半減期（月）＝直近を重く
+SPLIT_DATE = "2020-01-01"  # 構造節目（コロナ前後）で安定性を対比
 FIELDS = ["ShOutFY", "TrShFY", "FEPS", "Eq", "CFO", "FSales", "FDivAnn",
           "FNP", "TA", "FOP", "EqAR"]
 VALUE = ["earnings_yield", "book_to_market", "cf_yield", "sales_yield", "div_yield"]
@@ -82,9 +93,11 @@ def evaluate(name: str, factor: pd.DataFrame, fwd: pd.DataFrame,
     if ls.size >= MIN_MONTHS and ls.std(ddof=1) > 0:
         spp = sharpe_ratio(ls)
         stats.update(mean_m=float(ls.mean()), sharpe_pp=spp,
-                     sharpe_ann=spp * np.sqrt(12))
+                     sharpe_ann=spp * np.sqrt(12),
+                     sharpe_dec=time_decayed_sharpe(ls, HALFLIFE) * np.sqrt(12))
     else:
-        stats.update(mean_m=np.nan, sharpe_pp=np.nan, sharpe_ann=np.nan)
+        stats.update(mean_m=np.nan, sharpe_pp=np.nan, sharpe_ann=np.nan,
+                     sharpe_dec=np.nan)
     return ls, stats
 
 
@@ -104,7 +117,7 @@ def main() -> int:
     turn = assemble_panel(snaps, "Va")
     print(f"パネル: {adj.shape[0]} か月 × {adj.shape[1]} 銘柄")
 
-    universe = select_universe(listed, turn, top_n=TOP_N, min_obs=MIN_MONTHS)
+    universe = select_universe(listed, turn, top_n=TOP_N, min_obs=MIN_OBS_UNIV)
     print(f"ユニバース（流動性上位・普通株）: {len(universe)} 銘柄")
     adj, raw = adj.reindex(columns=universe), raw.reindex(columns=universe)
 
@@ -140,7 +153,8 @@ def main() -> int:
         spp = sharpe_ratio(comp_ls)
         stats.append({"name": "COMPOSITE", "n": int(comp_ls.size),
                       "mean_m": float(comp_ls.mean()), "sharpe_pp": spp,
-                      "sharpe_ann": spp * np.sqrt(12)})
+                      "sharpe_ann": spp * np.sqrt(12),
+                      "sharpe_dec": time_decayed_sharpe(comp_ls, HALFLIFE) * np.sqrt(12)})
 
     # --- 試行数デフレートDSR ---
     valid = [s for s in stats if not np.isnan(s["sharpe_pp"])]
@@ -157,14 +171,16 @@ def main() -> int:
     # --- 報告 ---
     valid.sort(key=lambda s: (s["sharpe_ann"] if not np.isnan(s["sharpe_ann"])
                               else -9), reverse=True)
-    print("\n=== 結果（セクター中立・コスト{:.0f}bps・LS{:.0%}）==="
-          .format(COSTS_BPS, QUANTILE))
-    print(f"試行数 n_trials={n_trials}, 試行間SR分散 V[SR]={sr_var:.4f}")
-    print(f"{'factor':<16}{'n':>4}{'mean/m':>9}{'SR(ann)':>9}{'DSR':>8}")
-    print("-" * 46)
+    print("\n=== 結果（{}〜{}・セクター中立・コスト{:.0f}bps・LS{:.0%}）==="
+          .format(START, END, COSTS_BPS, QUANTILE))
+    print(f"試行数 n_trials={n_trials}, 試行間SR分散 V[SR]={sr_var:.4f}  "
+          f"（SR_dec=直近重視・半減期{HALFLIFE:.0f}か月）")
+    print(f"{'factor':<16}{'n':>4}{'mean/m':>9}{'SR(ann)':>9}{'SR_dec':>8}{'DSR':>7}")
+    print("-" * 52)
     for s in valid:
         print(f"{s['name']:<16}{s['n']:>4}{s['mean_m']:>9.4f}"
-              f"{s['sharpe_ann']:>9.2f}{s['dsr']:>8.2f}")
+              f"{s['sharpe_ann']:>9.2f}{s.get('sharpe_dec', np.nan):>8.2f}"
+              f"{s['dsr']:>7.2f}")
 
     survivors = [s for s in valid if not np.isnan(s["dsr"]) and s["dsr"] >= 0.95]
     print("\n--- 判定（DSR≥0.95＝多重検定後も有意）---")
@@ -173,12 +189,24 @@ def main() -> int:
             print(f"  ★ {s['name']}: SR(ann)={s['sharpe_ann']:.2f}, DSR={s['dsr']:.3f}")
     else:
         best = valid[0] if valid else None
-        print("  生存ファクター無し（短い2年標本＋多重検定の壁）。")
+        print("  生存ファクター無し（多重検定の壁）。")
         if best:
             print(f"  最良は {best['name']} (SR(ann)={best['sharpe_ann']:.2f}, "
                   f"DSR={best['dsr']:.2f}) だが基準未達。")
-        print("  ※ これは健全な結果：偽の α を作らない。履歴延長(Light/5年)や")
-        print("    因果フィルタ・メタラベルでの絞り込みが次の一手。")
+
+    # --- サブ期間安定性（非定常性チェック）---------------------------------
+    print("\n--- サブ期間安定性（上位ファクター・年率Sharpe）---")
+    print("「10年前と今で効きが違うか」をデータで可視化。直近で崩れていないか確認。")
+    top = [s for s in valid if s["name"] != "COMPOSITE"][:6]
+    for s in top:
+        ls = series[s["name"]]
+        thirds = subperiod_sharpes(ls, k=3)
+        (npre, shpre), (npost, shpost) = pre_post_sharpe(ls, SPLIT_DATE)
+        seg = "  ".join(f"{lbl}:{sh:+.2f}(n{n})" for lbl, n, sh in thirds)
+        print(f"  {s['name']:<14} 全{s['sharpe_ann']:+.2f} | {seg} | "
+              f"前{SPLIT_DATE[:4]}:{shpre:+.2f}(n{npre}) 後:{shpost:+.2f}(n{npost})")
+    print("\n  ※ 全期間Sharpeが高くてもサブ期間で符号反転/直近劣化なら不採用。")
+    print("    安定（全サブ期間で同符号）かつ直近(SR_dec)維持の因子のみ次段へ。")
     return 0
 
 

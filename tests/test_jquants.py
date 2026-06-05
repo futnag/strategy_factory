@@ -53,8 +53,18 @@ def test_parse_listed_info_passthrough():
     assert df["CoName"].iloc[0] == "日本取引所グループ"
 
 
-def test_parse_statements_dates():
-    recs = [{"DisclosedDate": "2024-02-14", "LocalCode": "86970", "NetSales": "1000"}]
+def test_parse_statements_summary_v2_fields():
+    # V2 /fins/summary 略称（ライブ確認済み）:
+    #   DiscDate, Code, Sales, OP, NP, EPS, BPS, Eq, EqAR, TA, ShOutFY ...
+    recs = [{"DiscDate": "2024-02-14", "Code": "86970", "Sales": "1000",
+             "OP": "200", "NP": "150", "EPS": "75.5", "BPS": "1200",
+             "Eq": "5000", "EqAR": "0.45", "TA": "11000", "ShOutFY": "2000000"}]
     df = parse_statements(recs)
-    assert df["DisclosedDate"].iloc[0] == pd.Timestamp("2024-02-14")
-    assert df["LocalCode"].iloc[0] == "86970"
+    assert df["DiscDate"].iloc[0] == pd.Timestamp("2024-02-14")  # 日付化
+    assert df["Code"].iloc[0] == "86970"                          # コードは文字列
+    # 財務数値が float 化される（バリュー/クオリティ計算に必須）
+    assert df["EPS"].iloc[0] == 75.5
+    assert df["Eq"].iloc[0] == 5000.0
+    assert df["NP"].iloc[0] == 150.0
+    assert pd.api.types.is_numeric_dtype(df["Sales"])
+    assert pd.api.types.is_numeric_dtype(df["EqAR"])

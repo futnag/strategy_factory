@@ -14,7 +14,10 @@ V2 エンドポイント（ライブ確認済み）：
   日次株価  /equities/bars/daily   （date=YYYYMMDD, code=...）
             列: Date, Code, O/H/L/C, UL/LL, Vo(出来高), Va(売買代金),
                 AdjFactor, AdjO/AdjH/AdjL/AdjC, AdjVo
-  財務      /fins/details
+  財務      /fins/summary         決算短信サマリー（無料枠でも取得可）
+            列: DiscDate, Code, Sales, OP(営業利益), OdP(経常), NP(純利益),
+                EPS, BPS, Eq(純資産), EqAR(自己資本比率), TA(総資産), ...
+            ※ 詳細 BS/PL/CF の /fins/details は Premium 限定（本実装では不使用）
   レスポンスは {"data": [...], "pagination_key": ...}（列名は上記の略称）。
 """
 from __future__ import annotations
@@ -47,8 +50,15 @@ _NUMERIC = [
     "UpperLimit", "LowerLimit", "AdjustmentFactor",
     "AdjustmentOpen", "AdjustmentHigh", "AdjustmentLow",
     "AdjustmentClose", "AdjustmentVolume",
+    # 財務サマリー /fins/summary（V2略称）: 売上 営業/経常/純利益 EPS BPS
+    # 純資産Eq 自己資本比率EqAR 総資産TA（ライブで実在分を確定）
+    "Sales", "OP", "OdP", "NP", "EPS", "BPS", "Eq", "EqAR", "TA",
+    # 財務 V1 フルネーム（後方互換）
+    "NetSales", "OperatingProfit", "OrdinaryProfit", "Profit",
+    "EarningsPerShare", "BookValuePerShare", "Equity",
+    "EquityToAssetRatio", "TotalAssets",
 ]
-_DATE_COLS = ["Date", "DisclosedDate", "CurrentPeriodEndDate",
+_DATE_COLS = ["Date", "DiscDate", "DisclosedDate", "CurrentPeriodEndDate",
               "CurrentFiscalYearEndDate"]
 
 
@@ -116,9 +126,9 @@ def parse_listed_info(records: list) -> pd.DataFrame:
 
 
 def parse_statements(records: list) -> pd.DataFrame:
-    """財務諸表→DataFrame。"""
+    """財務サマリー(/fins/summary)→DataFrame。V2略称(DiscDate/Sales/EPS..)を数値化。"""
     if not records:
-        return pd.DataFrame(columns=["DisclosedDate", "LocalCode"])
+        return pd.DataFrame(columns=["DiscDate", "Code"])
     return _coerce(pd.DataFrame(records))
 
 
@@ -165,7 +175,13 @@ def fetch_daily_quotes(date: str, api_key: Optional[str] = None,
 
 def fetch_statements(code: Optional[str] = None, date: Optional[str] = None,
                      api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
-    """財務諸表（/fins/details, code別 or date別）。キャッシュ付き。"""
+    """財務サマリー（/fins/summary, code別 or date別）。キャッシュ付き。
+
+    決算短信サマリー（売上/利益/EPS/BPS/純資産等）で、無料プランでも
+    2年/12週遅延の範囲で取得可能。詳細BS/PL/CF(/fins/details)は Premium 限定
+    のため本クライアントでは扱わない（標準的なバリュー/クオリティには不要）。
+    code/date のどちらか一方は必須。
+    """
     key = (code or (str(date).replace("-", "") if date else None) or "all")
     cache = _CACHE / "statements" / f"{key}.parquet"
     hit = _cached(cache, refresh)
@@ -176,7 +192,7 @@ def fetch_statements(code: Optional[str] = None, date: Optional[str] = None,
         params["code"] = code
     if date:
         params["date"] = str(date).replace("-", "")
-    df = parse_statements(_get_paginated("/fins/details", params, _api_key(api_key)))
+    df = parse_statements(_get_paginated("/fins/summary", params, _api_key(api_key)))
     cache.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cache)
     return df

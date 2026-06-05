@@ -116,6 +116,35 @@ def check_daily_quotes() -> None:
     print("[daily dtypes] " + ", ".join(f"{c}={q[c].dtype}" for c in dtype_cols))
 
 
+def check_statements() -> None:
+    print("\n=== 4) 財務 /fins/summary（ファンダ項目の確認・1銘柄プローブ） ===")
+    code = "72030"  # トヨタ自動車（V2 は5桁コード: 7203 -> 72030）
+    try:
+        st = jq.fetch_statements(code=code)
+    except Exception as e:  # noqa: BLE001
+        print(f"[statements] ERROR: {e}")
+        probe_raw("/fins/details", {"code": code})
+        return
+    print(f"[statements {code}] shape={st.shape}")
+    if st.empty:
+        print("[statements] EMPTY -> probing raw response")
+        probe_raw("/fins/details", {"code": code})
+        return
+    print(f"[statements {code}] columns({len(st.columns)})={list(st.columns)}")
+    # 最新開示の非NULL項目を一覧（利用可能なファンダ項目の把握）
+    if "DisclosedDate" in st.columns:
+        st = st.sort_values("DisclosedDate")
+    row = st.iloc[-1]
+    nonnull = [(c, row[c]) for c in st.columns
+               if pd.notna(row[c]) and str(row[c]) != ""]
+    print(f"[statements {code}] 最新開示の非NULL項目数={len(nonnull)}（先頭60件）:")
+    for c, v in nonnull[:60]:
+        sv = str(v)
+        if len(sv) > 40:
+            sv = sv[:40] + "…"
+        print(f"    {c} = {sv}")
+
+
 def check_cache() -> None:
     print("\n=== 3) Parquet キャッシュ ===")
     cache = Path("data/jquants")
@@ -133,6 +162,7 @@ def main() -> int:
         return 1
     check_listed_info()
     check_daily_quotes()
+    check_statements()
     check_cache()
     print("\n完了。")
     return 0

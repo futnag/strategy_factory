@@ -22,9 +22,8 @@ def point_in_time(fund_long: pd.DataFrame, rebal_dates, fields: list[str],
     """
     rebal = pd.DatetimeIndex(sorted(pd.to_datetime(list(rebal_dates)))).normalize()
     present = [f for f in fields if f in fund_long.columns]
-    out = {f: pd.DataFrame(index=rebal, dtype="float64") for f in present}
     if fund_long.empty or not present:
-        return out
+        return {f: pd.DataFrame(index=rebal, dtype="float64") for f in present}
 
     df = fund_long.dropna(subset=[date_col]).copy()
     df[date_col] = pd.to_datetime(df[date_col]).dt.normalize()
@@ -33,14 +32,17 @@ def point_in_time(fund_long: pd.DataFrame, rebal_dates, fields: list[str],
     left["cutoff"] = left["asof"] - pd.Timedelta(days=lag_days)
     left = left.sort_values("cutoff")
 
+    # 列を1本ずつ挿入するとDataFrameが断片化する（pandas警告＋低速）。
+    # フィールド別に {code: series} を貯め、最後に一括構築する。
+    acc: dict[str, dict[str, pd.Series]] = {f: {} for f in present}
     for code, g in df.groupby(code_col):
         g = g.sort_values(date_col)
         # 同一開示日が複数なら最後（訂正等）を採用
         g = g[~g[date_col].duplicated(keep="last")]
         m = pd.merge_asof(left, g, left_on="cutoff", right_on=date_col,
-                          direction="backward")
-        m = m.set_index("asof")
+                          direction="backward").set_index("asof")
         for f in present:
             if f in m.columns:
-                out[f][str(code)] = pd.to_numeric(m[f], errors="coerce").reindex(rebal)
-    return out
+                acc[f][str(code)] = pd.to_numeric(m[f], errors="coerce").reindex(rebal)
+    return {f: (pd.DataFrame(acc[f], index=rebal) if acc[f]
+               else pd.DataFrame(index=rebal, dtype="float64")) for f in present}

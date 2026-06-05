@@ -87,3 +87,28 @@ def sector_neutralize(df: pd.DataFrame, sector: pd.Series) -> pd.DataFrame:
         block = df[cols.index]
         demeaned[cols.index] = block.sub(block.mean(axis=1), axis=0)
     return demeaned
+
+
+def cross_sectional_residualize(target: pd.DataFrame,
+                                controls: list[pd.DataFrame]) -> pd.DataFrame:
+    """各日付で target を controls に銘柄横断回帰し、残差（直交成分）を返す。
+
+    controls の線形結合で説明できる部分を除去し、target 固有の独立情報のみ残す。
+    あるファクターが既知ファクター（モメンタム/サイズ/バリュー等）の代理に過ぎない
+    かを検定する用途：残差化後もシグナルが残れば独立、消えれば代理。
+    """
+    cols = target.columns
+    out = pd.DataFrame(np.nan, index=target.index, columns=cols, dtype=float)
+    for t in target.index:
+        y = target.loc[t].to_numpy(dtype=float)
+        xs = [c.reindex(columns=cols).reindex(index=[t]).to_numpy(dtype=float).ravel()
+              for c in controls]
+        X = np.column_stack([np.ones_like(y)] + xs)        # 切片＋controls
+        mask = np.isfinite(y) & np.all(np.isfinite(X), axis=1)
+        if int(mask.sum()) < X.shape[1] + 2:
+            continue
+        beta, *_ = np.linalg.lstsq(X[mask], y[mask], rcond=None)
+        resid = np.full_like(y, np.nan)
+        resid[mask] = y[mask] - X[mask] @ beta
+        out.loc[t] = resid
+    return out

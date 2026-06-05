@@ -11,6 +11,7 @@ from invest_system.equities.panel import (
 )
 from invest_system.equities.fundamentals import point_in_time
 from invest_system.equities.factors import (
+    cross_sectional_residualize,
     cross_sectional_zscore,
     market_cap,
     sector_neutralize,
@@ -129,6 +130,26 @@ def test_sector_neutralize_within_group_demean():
 
 
 # --- backtest ---------------------------------------------------------------
+def test_residualize_removes_explainable_part():
+    idx = pd.date_range("2024-01-31", periods=2, freq="ME")
+    cols = ["A", "B", "C", "D", "E"]
+    control = pd.DataFrame([[1., 2, 3, 4, 5], [2., 4, 6, 8, 10]], index=idx, columns=cols)
+    target = 2.0 * control + 5.0          # control で完全に説明可能 → 残差≈0
+    resid = cross_sectional_residualize(target, [control])
+    assert np.allclose(resid.loc[idx[0]].to_numpy(), 0.0, atol=1e-7)
+
+
+def test_residualize_keeps_independent_part():
+    idx = pd.date_range("2024-01-31", periods=1, freq="ME")
+    cols = ["A", "B", "C", "D", "E", "F"]
+    control = pd.DataFrame([[1., 2, 3, 4, 5, 6]], index=idx, columns=cols)
+    indep = np.array([1., -1, 1, -1, 1, -1])
+    target = pd.DataFrame([control.iloc[0].to_numpy() + indep], index=idx, columns=cols)
+    resid = cross_sectional_residualize(target, [control]).loc[idx[0]].to_numpy()
+    assert resid.std() > 0                                  # 独立成分は残る
+    assert abs(np.corrcoef(resid, control.iloc[0].to_numpy())[0, 1]) < 1e-6  # 直交
+
+
 def test_long_short_returns_sign_and_costs():
     idx = [pd.Timestamp("2024-01-31")]
     factor = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0], "D": [4.0]}, index=idx)

@@ -10,16 +10,25 @@ from invest_system.data.sources.jquants import (
 
 
 def test_parse_daily_quotes_v2_abbreviated_fields():
-    # V2 は略称列（O/H/L/C/V, AdjC）
+    # V2 略称列（ライブ /equities/bars/daily で確認済み）:
+    #   O/H/L/C, UL/LL, Vo(出来高), Va(売買代金), AdjFactor, AdjC, AdjVo
     recs = [
         {"Date": "2024-01-04", "Code": "86970", "O": "100", "H": "110",
-         "L": "90", "C": "105", "V": "1000", "AdjC": "105"},
+         "L": "90", "C": "105", "UL": "0", "LL": "0", "Vo": "1000",
+         "Va": "105000", "AdjFactor": "1.0", "AdjC": "105", "AdjVo": "1000"},
         {"Date": "2024-01-05", "Code": "86970", "O": "105", "H": "120",
-         "L": "100", "C": "115", "V": "2000", "AdjC": "115"},
+         "L": "100", "C": "115", "UL": "0", "LL": "0", "Vo": "2000",
+         "Va": "230000", "AdjFactor": "1.0", "AdjC": "115", "AdjVo": "2000"},
     ]
     df = parse_daily_quotes(recs)
     assert df["C"].tolist() == [105.0, 115.0]
     assert df["AdjC"].tolist() == [105.0, 115.0]
+    # 出来高・売買代金・調整出来高も数値化される（旧 _NUMERIC では文字列のまま残った）
+    assert df["Vo"].tolist() == [1000.0, 2000.0]
+    assert df["Va"].tolist() == [105000.0, 230000.0]
+    assert df["AdjVo"].tolist() == [1000.0, 2000.0]
+    assert pd.api.types.is_numeric_dtype(df["Vo"])
+    # Code は文字列のまま（先頭ゼロ・識別子を保持）
     assert df["Code"].iloc[0] == "86970"
     assert df["Date"].iloc[0] == pd.Timestamp("2024-01-04")
 
@@ -35,10 +44,13 @@ def test_adjusted_close_col_resolves_v2_and_v1():
 
 
 def test_parse_listed_info_passthrough():
-    recs = [{"Code": "86970", "CompanyName": "日本取引所グループ", "Sector33Code": "7200"}]
+    # V2 略称（ライブ /equities/master で確認済み）: CoName, S33/S33Nm, Mkt ...
+    recs = [{"Code": "86970", "CoName": "日本取引所グループ",
+             "S33": "7200", "S33Nm": "その他金融業", "Mkt": "0111"}]
     df = parse_listed_info(recs)
     assert df["Code"].iloc[0] == "86970"
-    assert df["Sector33Code"].iloc[0] == "7200"
+    assert df["S33"].iloc[0] == "7200"  # セクターコードは文字列のまま保持
+    assert df["CoName"].iloc[0] == "日本取引所グループ"
 
 
 def test_parse_statements_dates():

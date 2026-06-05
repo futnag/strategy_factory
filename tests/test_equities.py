@@ -3,7 +3,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from invest_system.equities.universe import filter_common_stocks, select_universe
+from invest_system.equities.universe import (
+    apply_universe_mask,
+    filter_common_stocks,
+    point_in_time_universe,
+    select_universe,
+    universe_members,
+)
 from invest_system.equities.panel import (
     assemble_panel,
     forward_returns,
@@ -39,6 +45,29 @@ def test_select_universe_by_liquidity():
     }, index=pd.date_range("2024-01-31", periods=3, freq="ME"))
     uni = select_universe(listed, turnover, top_n=2, min_obs=2)
     assert uni == ["B", "A"]  # 流動性順、C は min_obs 未満で除外
+
+
+def test_point_in_time_universe_no_lookahead():
+    idx = pd.date_range("2024-01-31", periods=3, freq="ME")
+    turn = pd.DataFrame({"A": [10., 10, 10], "B": [20., 20, 20],
+                         "C": [30., 30, 30], "D": [1., 100, 500]}, index=idx)
+    mask = point_in_time_universe(turn, top_n=2, lookback=1, min_obs=1)
+    # t0: 当時 D=1 は下位 → 未来の急増(t1,t2)を使わない＝先読み無し
+    assert bool(mask.loc[idx[0], "C"]) and bool(mask.loc[idx[0], "B"])
+    assert not bool(mask.loc[idx[0], "D"])
+    # t1/t2: D が上位に入る
+    assert bool(mask.loc[idx[1], "D"]) and bool(mask.loc[idx[2], "D"])
+    assert universe_members(mask) == ["B", "C", "D"]   # A は一度も入らない
+
+
+def test_apply_universe_mask():
+    idx = pd.date_range("2024-01-31", periods=2, freq="ME")
+    fac = pd.DataFrame({"A": [1., 2], "B": [3., 4], "C": [5., 6]}, index=idx)
+    mask = pd.DataFrame({"A": [True, False], "B": [True, True], "C": [False, True]},
+                        index=idx)
+    out = apply_universe_mask(fac, mask)
+    assert out.loc[idx[0], "A"] == 1.0 and np.isnan(out.loc[idx[0], "C"])
+    assert np.isnan(out.loc[idx[1], "A"]) and out.loc[idx[1], "C"] == 6.0
 
 
 # --- panel ------------------------------------------------------------------

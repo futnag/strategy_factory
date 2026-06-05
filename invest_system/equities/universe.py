@@ -39,3 +39,38 @@ def select_universe(listed: pd.DataFrame, turnover_panel: pd.DataFrame,
     sub = sub.loc[:, enough[enough].index]
     med = sub.median(axis=0, skipna=True).sort_values(ascending=False)
     return [str(c) for c in med.head(top_n).index]
+
+
+def point_in_time_universe(turnover_panel: pd.DataFrame, top_n: int = 300,
+                           lookback: int = 12, min_obs: int = 6) -> pd.DataFrame:
+    """時変ユニバースの所属マスク（先読み・生存者バイアスを排除）。
+
+    各日付 t で「過去 lookback 行（t を含む）」の売買代金中央値が上位 top_n、かつ
+    t 時点で実際に取引している（turnover 非NaN）銘柄のみ True にする。未来の流動性は
+    一切使わない。turnover_panel は普通株に絞った wide（index=リバランス日, col=Code）。
+
+    Returns: bool DataFrame（index=日付, columns=Code, True=その時点のユニバース所属）。
+    """
+    mask = pd.DataFrame(False, index=turnover_panel.index,
+                        columns=turnover_panel.columns)
+    for i, t in enumerate(turnover_panel.index):
+        window = turnover_panel.iloc[max(0, i - lookback + 1): i + 1]
+        obs = window.notna().sum(axis=0)
+        med = window.median(axis=0, skipna=True)
+        trading = turnover_panel.loc[t].notna()
+        eligible = med[(obs >= min_obs) & trading]
+        top = eligible.sort_values(ascending=False).head(top_n).index
+        mask.loc[t, top] = True
+    return mask
+
+
+def universe_members(mask: pd.DataFrame) -> list[str]:
+    """マスクで一度でも所属した銘柄の和集合（財務等を取得すべき superset）。"""
+    ever = mask.any(axis=0)
+    return [str(c) for c in ever[ever].index]
+
+
+def apply_universe_mask(factor: pd.DataFrame, mask: pd.DataFrame) -> pd.DataFrame:
+    """各時点で非所属の銘柄を NaN にして、ランキング対象から除外する。"""
+    m = mask.reindex(index=factor.index, columns=factor.columns).fillna(False)
+    return factor.where(m)

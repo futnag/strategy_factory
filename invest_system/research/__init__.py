@@ -12,8 +12,8 @@ from .engine import BacktestResult, backtest
 from .judge import GridVerdict, StrategyVerdict, judge_grid
 from .report_html import to_html, write_html
 from .strategy import (
-    CalendarStrategy, CrossSectionalStrategy, GapReversal, PairsStrategy,
-    SignalTimingStrategy, Strategy,
+    CalendarStrategy, CrossSectionalStrategy, EarningsRunup, GapReversal,
+    PairsStrategy, SignalTimingStrategy, Strategy,
 )
 
 __all__ = [
@@ -24,6 +24,7 @@ __all__ = [
     "SignalTimingStrategy",
     "CalendarStrategy",
     "PairsStrategy",
+    "EarningsRunup",
     "CrossSectionalStrategy",
     "backtest",
     "BacktestResult",

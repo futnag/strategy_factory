@@ -73,3 +73,35 @@ def expected_announcement_month(fund_long: pd.DataFrame, rebal_dates,
         out[str(code)] = (nxt.isin(months).to_numpy() & (rebal >= first))
     return pd.DataFrame(out, index=rebal)
 
+
+def days_to_next_announcement(fund_long: pd.DataFrame, dates,
+                              default_interval: float = 91.0,
+                              date_col: str = "DiscDate", code_col: str = "Code"
+                              ) -> pd.DataFrame:
+    """各営業日 d で「次回決算発表までの予測日数」パネル（PIT・日次イベント戦略用）。
+
+    予測＝直近開示日(≤d) ＋ その銘柄の典型開示間隔（中央値, 四半期≈91日にクランプ）。
+    発表直後は ~91、次回が近づくほど 0 へ減少、新規開示でリセット。初開示前は NaN。
+    過去の DiscDate のみ使用＝先読み無し（実際の予定日との誤差は run-up 窓幅で吸収）。
+
+    Returns: float DataFrame（index=日付, columns=Code, 値=予測日数。負=予定超過/直前）。
+    """
+    dates = pd.DatetimeIndex(sorted(pd.to_datetime(list(dates))))
+    if fund_long.empty or date_col not in fund_long.columns:
+        return pd.DataFrame(index=dates)
+    df = fund_long.dropna(subset=[date_col]).copy()
+    df[date_col] = pd.to_datetime(df[date_col])
+    dnp = dates.to_numpy()
+    out = {}
+    for code, g in df.groupby(code_col):
+        dd = g[date_col].drop_duplicates().sort_values()
+        diffs = dd.diff().dropna().dt.days
+        interval = float(diffs.median()) if len(diffs) else default_interval
+        interval = min(max(interval, 60.0), 130.0)
+        last = pd.merge_asof(pd.DataFrame({"d": dates}),
+                             pd.DataFrame({"dd": dd.to_numpy()}),
+                             left_on="d", right_on="dd", direction="backward")["dd"]
+        next_exp = last.to_numpy() + np.timedelta64(int(interval), "D")
+        out[str(code)] = (next_exp - dnp) / np.timedelta64(1, "D")
+    return pd.DataFrame(out, index=dates)
+

@@ -147,6 +147,36 @@ class PairsStrategy(Strategy):
         return pd.Series(dtype="float64")
 
 
+class EarningsRunup(Strategy):
+    """日次イベント：次回決算が近い銘柄をロング/それ以外をショート（発表前ドリフト）。
+
+    days_panel（events.days_to_next_announcement）の予測日数 d が lag < d <= pre の銘柄
+    （＝発表 pre 日前〜lag 日前の run-up 窓）をロング、窓外をショート（ダラーニュートラル）。
+    d<=lag（直前/当日）は窓から外し、発表ジャンプを跨がない。PIT安全。
+    """
+
+    def __init__(self, days_panel: pd.DataFrame, pre: int = 20, lag: int = 2,
+                 name: str | None = None):
+        self.days = days_panel
+        self.pre = int(pre)
+        self.lag = int(lag)
+        self.name = name or f"earn_runup(pre={pre},lag={lag})"
+        self.params = {"pre": pre, "lag": lag}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        if asof.asof not in self.days.index:
+            return pd.Series(dtype="float64")
+        d = self.days.loc[asof.asof].dropna()
+        in_win = d[(d > self.lag) & (d <= self.pre)].index
+        out = d.index.difference(in_win)
+        if len(in_win) == 0 or len(out) == 0:
+            return pd.Series(dtype="float64")
+        w = pd.Series(0.0, index=d.index, dtype="float64")
+        w[in_win] = 1.0 / len(in_win)       # run-up窓＝ロング
+        w[out] = -1.0 / len(out)            # 窓外＝ショート
+        return w[w != 0.0]
+
+
 class CrossSectionalStrategy(Strategy):
     """事前計算済みの PIT ファクターをロングショートに変換する戦略。
 

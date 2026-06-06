@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 
 from invest_system.equities.events import (
-    earnings_surprise, expected_announcement_month, forecast_revision,
+    days_to_next_announcement, earnings_surprise, expected_announcement_month,
+    forecast_revision,
 )
 
 
@@ -45,7 +46,20 @@ def test_expected_announcement_month():
     assert bool(m.loc[pd.Timestamp("2024-07-31"), "200"]) is True
 
 
+def test_days_to_next_announcement():
+    fund = pd.DataFrame({
+        "Code": ["100", "100"],
+        "DiscDate": pd.to_datetime(["2024-02-01", "2024-05-01"]),  # 間隔90日
+    })
+    dates = pd.to_datetime(["2024-05-02", "2024-07-15"])
+    p = days_to_next_announcement(fund, dates)["100"]
+    # 次回予測=2024-05-01+90日=2024-07-30。残日数は 89 / 15。
+    assert p.loc[pd.Timestamp("2024-05-02")] == pytest.approx(89)
+    assert p.loc[pd.Timestamp("2024-07-15")] == pytest.approx(15)
+
+
 def test_empty_inputs():
     assert forecast_revision(pd.DataFrame()).empty
     assert earnings_surprise(pd.DataFrame()).empty
     assert expected_announcement_month(pd.DataFrame(), [pd.Timestamp("2024-01-31")]).empty
+    assert days_to_next_announcement(pd.DataFrame(), [pd.Timestamp("2024-01-31")]).empty

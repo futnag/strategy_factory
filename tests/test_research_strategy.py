@@ -5,8 +5,8 @@ import pytest
 
 from invest_system.research.data_view import AsOfView
 from invest_system.research.strategy import (
-    CalendarStrategy, CrossSectionalStrategy, GapReversal, PairsStrategy,
-    SignalTimingStrategy,
+    CalendarStrategy, CrossSectionalStrategy, EarningsRunup, GapReversal,
+    PairsStrategy, SignalTimingStrategy,
 )
 
 
@@ -92,6 +92,17 @@ def test_calendar_strategy_turn_of_month():
     assert s.target_weights(view.asof(pd.Timestamp("2024-01-28")))["X"] == 1.0
     assert s.target_weights(view.asof(pd.Timestamp("2024-01-02")))["X"] == 1.0
     assert s.target_weights(view.asof(pd.Timestamp("2024-01-15"))).empty
+
+
+def test_earnings_runup_long_window_short_rest():
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    close = pd.DataFrame({"A": [100.] * 2, "B": [100.] * 2, "C": [100.] * 2}, index=idx)
+    days = pd.DataFrame({"A": [10., 10], "B": [50., 50], "C": [1., 1]}, index=idx)
+    view = AsOfView({"close": close})
+    w = EarningsRunup(days, pre=20, lag=2).target_weights(view.asof(idx[0]))
+    assert w["A"] == pytest.approx(1.0)         # 2<10<=20 → run-up窓ロング
+    assert w["B"] == pytest.approx(-0.5)        # 50>20 → 窓外ショート
+    assert w["C"] == pytest.approx(-0.5)        # 1<=2 → 窓外ショート(直前)
 
 
 def test_pairs_strategy_mean_reversion():

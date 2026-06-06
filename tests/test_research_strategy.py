@@ -1,0 +1,73 @@
+"""検証ファクトリ Phase1：データビュー＋戦略契約の検証。ネットワーク不要。"""
+import numpy as np
+import pandas as pd
+import pytest
+
+from invest_system.research.data_view import AsOfView
+from invest_system.research.strategy import CrossSectionalStrategy, GapReversal
+
+
+def _ohlc():
+    idx = pd.date_range("2024-01-01", periods=3, freq="D")
+    op = pd.DataFrame({"A": [100., 100, 88], "B": [100., 100, 100]}, index=idx)
+    cl = pd.DataFrame({"A": [100., 100, 90], "B": [100., 100, 101]}, index=idx)
+    return idx, {"open": op, "close": cl}
+
+
+# --- AsOfView：未来不可視（リーク遮断）-------------------------------------
+def test_asofview_hides_future():
+    idx, panels = _ohlc()
+    view = AsOfView(panels)
+    a = view.asof(idx[1])                       # 2日目時点
+    assert a.frame("close").index.max() == idx[1]   # 未来(idx[2])は含まない
+    assert a.n_bars() == 2
+    assert a.last("close")["A"] == 100.0
+    assert a.lag("close", 1)["A"] == 100.0      # 前日
+
+
+def test_asofview_requires_close():
+    with pytest.raises(ValueError):
+        AsOfView({"open": pd.DataFrame()})
+
+
+def test_asof_unknown_field_raises():
+    idx, panels = _ohlc()
+    a = AsOfView(panels).asof(idx[2])
+    with pytest.raises(KeyError):
+        a.frame("volume")
+
+
+# --- GapReversal -----------------------------------------------------------
+def test_gap_reversal_triggers_on_gap_down():
+    idx, panels = _ohlc()
+    a = AsOfView(panels).asof(idx[2])           # 3日目：A は -12% ギャップダウン
+    w = GapReversal(threshold=0.10, hold=1, side=1).target_weights(a)
+    assert list(w.index) == ["A"]               # A のみ建玉
+    assert w["A"] == pytest.approx(1.0)
+    assert "B" not in w.index                   # ギャップ無しは除外
+
+
+def test_gap_reversal_no_trigger_returns_empty():
+    idx, panels = _ohlc()
+    a = AsOfView(panels).asof(idx[1])           # 2日目：まだギャップ無し
+    w = GapReversal(threshold=0.10).target_weights(a)
+    assert w.empty
+
+
+def test_gap_reversal_short_side():
+    idx, panels = _ohlc()
+    a = AsOfView(panels).asof(idx[2])
+    w = GapReversal(threshold=0.10, side=-1).target_weights(a)
+    assert w["A"] == pytest.approx(-1.0)
+
+
+# --- CrossSectionalStrategy ------------------------------------------------
+def test_cross_sectional_long_short():
+    idx = pd.date_range("2024-01-31", periods=1, freq="ME")
+    close = pd.DataFrame({c: [1.0] for c in ["A", "B", "C", "D", "E"]}, index=idx)
+    factor = pd.DataFrame({"A": [1.], "B": [2], "C": [3], "D": [4], "E": [5]}, index=idx)
+    a = AsOfView({"close": close}).asof(idx[0])
+    w = CrossSectionalStrategy(factor, quantile=0.2).target_weights(a)
+    assert w["E"] == pytest.approx(1.0)         # 上位ロング
+    assert w["A"] == pytest.approx(-1.0)        # 下位ショート
+    assert set(w.index) == {"A", "E"}

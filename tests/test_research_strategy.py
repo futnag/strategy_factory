@@ -5,7 +5,8 @@ import pytest
 
 from invest_system.research.data_view import AsOfView
 from invest_system.research.strategy import (
-    CrossSectionalStrategy, GapReversal, SignalTimingStrategy,
+    CalendarStrategy, CrossSectionalStrategy, GapReversal, PairsStrategy,
+    SignalTimingStrategy,
 )
 
 
@@ -81,6 +82,28 @@ def test_signal_timing_no_future_signal():
     signal = pd.Series([0.9], index=[idx[1]])
     strat = SignalTimingStrategy(signal, code="0000")
     assert strat.target_weights(AsOfView({"close": close}).asof(idx[0])).empty
+
+
+# --- CalendarStrategy / PairsStrategy --------------------------------------
+def test_calendar_strategy_turn_of_month():
+    idx = pd.date_range("2024-01-01", periods=31, freq="D")
+    view = AsOfView({"close": pd.DataFrame({"X": [100.] * 31}, index=idx)})
+    s = CalendarStrategy("X", dom_start=28, dom_end=2, side=1)
+    assert s.target_weights(view.asof(pd.Timestamp("2024-01-28")))["X"] == 1.0
+    assert s.target_weights(view.asof(pd.Timestamp("2024-01-02")))["X"] == 1.0
+    assert s.target_weights(view.asof(pd.Timestamp("2024-01-15"))).empty
+
+
+def test_pairs_strategy_mean_reversion():
+    idx = pd.date_range("2024-01-01", periods=70, freq="D")
+    rng = np.random.default_rng(0)
+    b = 100 * np.cumprod(1 + rng.normal(0, 0.01, 70))
+    a = b.copy()
+    a[-1] = a[-1] * 1.2                              # A が最後に急騰→割高
+    view = AsOfView({"close": pd.DataFrame({"A": a, "B": b}, index=idx)})
+    w = PairsStrategy("A", "B", lookback=60, entry=1.5).target_weights(view.asof(idx[-1]))
+    assert w["A"] == pytest.approx(-0.5)            # A売り
+    assert w["B"] == pytest.approx(0.5)             # B買い
 
 
 # --- CrossSectionalStrategy ------------------------------------------------

@@ -9,6 +9,7 @@ DSL ではなくコードの契約。単純ルールは GapReversal のような
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from .data_view import AsOf
@@ -83,6 +84,66 @@ class SignalTimingStrategy(Strategy):
             return pd.Series(dtype="float64")
         if s.iloc[-1] > self.threshold:
             return pd.Series({self.code: float(self.side)}, dtype="float64")
+        return pd.Series(dtype="float64")
+
+
+class CalendarStrategy(Strategy):
+    """暦日条件で単一銘柄（指数等）を建玉する季節性戦略（月末効果 turn-of-month 等）。
+
+    各日 t の暦日が「月末側 dom_start 以上 または 月初側 dom_end 以下」なら side 方向に
+    建玉、否なら現金。日付は既知＝先読み無し。dom_start/dom_end/side が試行格子。
+    """
+
+    def __init__(self, code: str, dom_start: int = 25, dom_end: int = 3,
+                 side: int = 1, name: str | None = None):
+        self.code = code
+        self.dom_start = int(dom_start)
+        self.dom_end = int(dom_end)
+        self.side = int(side)
+        self.name = name or (f"calendar({code},>= {dom_start}|<= {dom_end},"
+                             f"side={side:+d})")
+        self.params = {"code": code, "dom_start": dom_start, "dom_end": dom_end,
+                       "side": side}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        d = asof.asof.day
+        if d >= self.dom_start or d <= self.dom_end:
+            return pd.Series({self.code: float(self.side)}, dtype="float64")
+        return pd.Series(dtype="float64")
+
+
+class PairsStrategy(Strategy):
+    """2銘柄のスプレッド（対数比）z-scoreで平均回帰する相対価値戦略（ダラーニュートラル）。
+
+    各 t で直近 lookback の対数比 log(A)-log(B) の z を見る。z>+entry は A 割高→A売り/B買い、
+    z<-entry は A 割安→A買い/B売り、中間は現金。AsOf の過去価格のみ使用＝先読み無し。
+    """
+
+    def __init__(self, a: str, b: str, lookback: int = 60, entry: float = 1.5,
+                 name: str | None = None):
+        self.a, self.b = a, b
+        self.lookback = int(lookback)
+        self.entry = float(entry)
+        self.name = name or f"pairs({a}-{b},lb={lookback},entry={entry:g})"
+        self.params = {"a": a, "b": b, "lookback": lookback, "entry": entry}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        cl = asof.frame("close")
+        if self.a not in cl.columns or self.b not in cl.columns:
+            return pd.Series(dtype="float64")
+        sub = cl[[self.a, self.b]].dropna()
+        if len(sub) < self.lookback + 2:
+            return pd.Series(dtype="float64")
+        spread = np.log(sub[self.a]) - np.log(sub[self.b])
+        win = spread.iloc[-self.lookback:]
+        sd = win.std(ddof=0)
+        if sd == 0:
+            return pd.Series(dtype="float64")
+        z = (spread.iloc[-1] - win.mean()) / sd
+        if z > self.entry:
+            return pd.Series({self.a: -0.5, self.b: 0.5}, dtype="float64")
+        if z < -self.entry:
+            return pd.Series({self.a: 0.5, self.b: -0.5}, dtype="float64")
         return pd.Series(dtype="float64")
 
 

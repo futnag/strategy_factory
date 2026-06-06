@@ -219,6 +219,30 @@ def fetch_daily_quotes(date: str, api_key: Optional[str] = None,
     return df
 
 
+def fetch_daily_history(code: str, frm: Optional[str] = None,
+                        to: Optional[str] = None, api_key: Optional[str] = None,
+                        refresh: bool = False) -> pd.DataFrame:
+    """1銘柄の日次株価履歴（/equities/bars/daily?code=...&from&to）。code単位でキャッシュ。
+
+    日足の AdjO/AdjH/AdjL/AdjC（分割調整済）を含む。日次イベント戦略（ギャップ等）の
+    パネル構築に使う。期間を変えても同一ファイルに上書きするため、広めの窓で一度取得。
+    """
+    params: dict = {"code": code}
+    if frm:
+        params["from"] = _ymd(frm)
+    if to:
+        params["to"] = _ymd(to)
+    cache = _CACHE / "daily_by_code" / f"{code}.parquet"
+    hit = _cached(cache, refresh)
+    if hit is not None:
+        return hit
+    df = parse_daily_quotes(
+        _get_paginated("/equities/bars/daily", params, _api_key(api_key)))
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(cache)
+    return df
+
+
 def fetch_statements(code: Optional[str] = None, date: Optional[str] = None,
                      api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
     """財務サマリー（/fins/summary, code別 or date別）。キャッシュ付き。

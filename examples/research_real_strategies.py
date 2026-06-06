@@ -30,7 +30,7 @@ from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors,
 )
 from invest_system.research import (  # noqa: E402
-    AsOfView, CrossSectionalStrategy, SignalTimingStrategy, judge_grid,
+    AsOfView, CrossSectionalStrategy, SignalTimingStrategy, judge_grid, write_html,
 )
 from invest_system.validation.registry import default_registry  # noqa: E402
 
@@ -68,6 +68,7 @@ def strategy_a_flow_timing(reg):
                    economic_rationale="海外投資家フローは日本株の主要な限界需要であり需給を主導するため",
                    registry=reg, costs_bps=10.0)
     print(v.report_md)
+    print("HTMLレポート:", write_html(v, f"data/reports/{v.scope}.html"))
 
 
 def strategy_b_value(reg):
@@ -97,6 +98,7 @@ def strategy_b_value(reg):
                    economic_rationale="リスク/行動バイアスに基づくバリュー・プレミアムの持続を仮定",
                    registry=reg, costs_bps=15.0, adv=adv, participation=0.1)
     print(v.report_md)
+    print("HTMLレポート:", write_html(v, f"data/reports/{v.scope}.html"))
 
 
 def main() -> int:

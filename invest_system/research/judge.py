@@ -47,6 +47,9 @@ class GridVerdict:
     best: object
     passed: bool
     report_md: str
+    hypothesis: str = ""
+    dsr_threshold: float = 0.95
+    series: dict = field(default_factory=dict)   # name -> ネットリターン系列
 
 
 def _maxdd(r: pd.Series) -> float:
@@ -127,7 +130,9 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
     sr_var = registry.sharpe_variance(scope)
     report = _render(scope, k, sr_var, results, best, passed, hypothesis,
                      dsr_threshold)
-    return GridVerdict(scope, k, sr_var, results, best, passed, report)
+    series = {s.name: r for s, res, r, uid in staged}
+    return GridVerdict(scope, k, sr_var, results, best, passed, report,
+                       hypothesis, dsr_threshold, series)
 
 
 def _render(scope, k, sr_var, results, best, passed, hypothesis,

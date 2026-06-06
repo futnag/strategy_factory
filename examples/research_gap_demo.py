@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from invest_system.config import get_env  # noqa: E402
 from invest_system.data.sources import jquants as jq  # noqa: E402
 from invest_system.equities.universe import filter_common_stocks  # noqa: E402
-from invest_system.research import AsOfView, GapReversal, judge_grid  # noqa: E402
+from invest_system.research import (  # noqa: E402
+    AsOfView, GapReversal, judge_grid, write_html,
+)
 from invest_system.validation.registry import default_registry  # noqa: E402
 
 START = get_env("J_EQ_START_D", "2020-01-01") or "2020-01-01"
@@ -77,7 +79,9 @@ def main() -> int:
             economic_rationale="流動性ショックや強制売りによる一時的ミスプライスが数日で解消される行動仮説",
             registry=reg, costs_bps=15.0, execution_lag=1, adv=advp, participation=0.1)
     print(verdict.report_md)
-    print(f"\n（参考）格子{len(grid)}通り＝独立試行{verdict.k}としてデフレート。"
+    path = write_html(verdict, f"data/reports/{verdict.scope}.html")
+    print(f"\nHTMLレポート: {path}")
+    print(f"（参考）格子{len(grid)}通り＝独立試行{verdict.k}としてデフレート。"
           "1つでも閾値0.95を超えれば PASS、超えねば『このアイデアにエッジ無し』。")
     return 0
 

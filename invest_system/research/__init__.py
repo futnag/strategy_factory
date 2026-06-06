@@ -10,6 +10,7 @@
 from .data_view import AsOf, AsOfView
 from .engine import BacktestResult, backtest
 from .judge import GridVerdict, StrategyVerdict, judge_grid
+from .report_html import to_html, write_html
 from .strategy import (
     CrossSectionalStrategy, GapReversal, SignalTimingStrategy, Strategy,
 )
@@ -26,4 +27,6 @@ __all__ = [
     "judge_grid",
     "GridVerdict",
     "StrategyVerdict",
+    "to_html",
+    "write_html",
 ]

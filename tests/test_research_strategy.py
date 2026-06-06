@@ -5,8 +5,8 @@ import pytest
 
 from invest_system.research.data_view import AsOfView
 from invest_system.research.strategy import (
-    CalendarStrategy, CrossSectionalStrategy, EarningsRunup, GapReversal,
-    PairsStrategy, SignalTimingStrategy,
+    CalendarStrategy, CompositeStrategy, CrossSectionalStrategy, EarningsRunup,
+    GapReversal, PairsStrategy, SignalTimingStrategy,
 )
 
 
@@ -127,3 +127,25 @@ def test_cross_sectional_long_short():
     assert w["E"] == pytest.approx(1.0)         # 上位ロング
     assert w["A"] == pytest.approx(-1.0)        # 下位ショート
     assert set(w.index) == {"A", "E"}
+
+
+def test_cross_sectional_long_only_market_hedged():
+    idx = pd.date_range("2024-01-31", periods=1, freq="ME")
+    close = pd.DataFrame({c: [1.0] for c in ["A", "B", "C", "D", "E"]}, index=idx)
+    factor = pd.DataFrame({"A": [1.], "B": [2], "C": [3], "D": [4], "E": [5]}, index=idx)
+    a = AsOfView({"close": close}).asof(idx[0])
+    w = CrossSectionalStrategy(factor, 0.2, long_only=True).target_weights(a)
+    assert w["E"] == pytest.approx(0.8)         # +1/1 − 1/5（上位ロング−市場ショート）
+    assert w["A"] == pytest.approx(-0.2)        # −1/5（市場ショートのみ）
+    assert abs(w.sum()) < 1e-9                  # ダラーニュートラル
+
+
+def test_composite_strategy_sums_weights():
+    idx = pd.date_range("2024-01-31", periods=1, freq="ME")
+    close = pd.DataFrame({c: [1.0] for c in ["A", "B", "C", "D", "E"]}, index=idx)
+    f1 = pd.DataFrame({"A": [1.], "B": [2], "C": [3], "D": [4], "E": [5]}, index=idx)
+    a = AsOfView({"close": close}).asof(idx[0])
+    s1 = CrossSectionalStrategy(f1, 0.2, name="s1")
+    combo = CompositeStrategy([s1, s1], [0.5, 0.5])     # 同一戦略×2×0.5 = s1
+    w = combo.target_weights(a)
+    assert w["E"] == pytest.approx(1.0) and w["A"] == pytest.approx(-1.0)

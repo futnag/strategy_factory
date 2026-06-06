@@ -186,11 +186,12 @@ class CrossSectionalStrategy(Strategy):
     """
 
     def __init__(self, factor: pd.DataFrame, quantile: float = 0.2,
-                 name: str = "cross_sectional"):
+                 name: str = "cross_sectional", long_only: bool = False):
         self.factor = factor
         self.quantile = float(quantile)
         self.name = name
-        self.params = {"quantile": quantile}
+        self.long_only = bool(long_only)
+        self.params = {"quantile": quantile, "long_only": long_only}
 
     def target_weights(self, asof: AsOf) -> pd.Series:
         if asof.asof not in self.factor.index:
@@ -200,7 +201,38 @@ class CrossSectionalStrategy(Strategy):
             return pd.Series(dtype="float64")
         k = max(1, int(len(row) * self.quantile))
         order = row.sort_values()
-        w = pd.Series(0.0, index=row.index, dtype="float64")
-        w[order.index[-k:]] = 1.0 / k       # 上位ロング
-        w[order.index[:k]] = -1.0 / k       # 下位ショート
+        if self.long_only:
+            # 上位ロング × ユニバース等加重ショート（市場ヘッジ＝下位を名指しで売らない）
+            w = pd.Series(-1.0 / len(row), index=row.index, dtype="float64")
+            w[order.index[-k:]] += 1.0 / k
+        else:
+            w = pd.Series(0.0, index=row.index, dtype="float64")
+            w[order.index[-k:]] = 1.0 / k   # 上位ロング
+            w[order.index[:k]] = -1.0 / k   # 下位ショート
         return w[w != 0.0]
+
+
+class CompositeStrategy(Strategy):
+    """複数の戦略の目標ウェイトを重み付きで合算する（戦略ポートフォリオ）。
+
+    因子の合成ではなく**ウェイト水準**で合成するため、各スリーブの性質（例：value=
+    ロングショート、PEAD=ロングティルト）をそのまま束ねられる。
+    """
+
+    def __init__(self, strategies, weights=None, name: str | None = None):
+        self.strategies = list(strategies)
+        n = len(self.strategies)
+        self.weights = list(weights) if weights is not None else [1.0 / n] * n
+        self.name = name or "composite(" + "+".join(
+            s.name for s in self.strategies) + ")"
+        self.params = {"members": [s.name for s in self.strategies],
+                       "weights": self.weights}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        total: pd.Series | None = None
+        for s, wt in zip(self.strategies, self.weights):
+            w = s.target_weights(asof) * float(wt)
+            total = w if total is None else total.add(w, fill_value=0.0)
+        if total is None:
+            return pd.Series(dtype="float64")
+        return total[total != 0.0]

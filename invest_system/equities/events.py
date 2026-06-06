@@ -45,3 +45,31 @@ def earnings_surprise(fund_long: pd.DataFrame, actual: str = "EPS",
     df = df.dropna(subset=[actual, forecast])
     df["surprise"] = (df[actual] - df[forecast]) / df[forecast].abs().replace(0, np.nan)
     return df.dropna(subset=["surprise"])[cols]
+
+
+def expected_announcement_month(fund_long: pd.DataFrame, rebal_dates,
+                                date_col: str = "DiscDate",
+                                code_col: str = "Code") -> pd.DataFrame:
+    """各リバランス日 t で「翌月に決算発表が見込まれる銘柄」を True にするマスク。
+
+    決算発表予定(earnings-calendar)は前向きのみのため、過去の発表日 DiscDate から各銘柄の
+    「発表月パターン」を作り、翌月(t+1)の暦月がそのパターンに含まれれば発表見込みとする。
+    会計カレンダーは年次で安定するため、月パターン自体は構造的属性として扱う（リターンには
+    先読みを持ち込まない）。初開示前の銘柄は False（PIT）。
+
+    Returns: bool DataFrame（index=リバランス日, columns=Code）。
+    """
+    rebal = pd.DatetimeIndex(sorted(pd.to_datetime(list(rebal_dates))))
+    if fund_long.empty or date_col not in fund_long.columns:
+        return pd.DataFrame(False, index=rebal, columns=[])
+    nxt = pd.Series([(t + pd.offsets.MonthBegin(1)).month for t in rebal], index=rebal)
+    df = fund_long.dropna(subset=[date_col]).copy()
+    df[date_col] = pd.to_datetime(df[date_col])
+    out = {}
+    for code, g in df.groupby(code_col):
+        # 四半期決算の規則的な発表月＝最頻4か月（予想修正等の散発開示月を除く）
+        months = set(int(m) for m in g[date_col].dt.month.value_counts().head(4).index)
+        first = g[date_col].min()
+        out[str(code)] = (nxt.isin(months).to_numpy() & (rebal >= first))
+    return pd.DataFrame(out, index=rebal)
+

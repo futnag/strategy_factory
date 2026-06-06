@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from invest_system.equities.events import earnings_surprise, forecast_revision
+from invest_system.equities.events import (
+    earnings_surprise, expected_announcement_month, forecast_revision,
+)
 
 
 def test_forecast_revision_per_code():
@@ -29,6 +31,21 @@ def test_earnings_surprise():
     assert out["surprise"].iloc[0] == pytest.approx(0.20)   # (120-100)/100
 
 
+def test_expected_announcement_month():
+    fund = pd.DataFrame({
+        "Code": ["100", "100", "200"],
+        "DiscDate": pd.to_datetime(["2023-05-15", "2024-05-15", "2023-08-10"]),
+    })
+    rebal = pd.to_datetime(["2024-04-30", "2024-07-31"])
+    m = expected_announcement_month(fund, rebal)
+    # 100は5月発表 → 4月末(翌月=5月)に発表見込みTrue、7月末(翌月=8月)はFalse
+    assert bool(m.loc[pd.Timestamp("2024-04-30"), "100"]) is True
+    assert bool(m.loc[pd.Timestamp("2024-07-31"), "100"]) is False
+    # 200は8月発表 → 7月末(翌月=8月)にTrue
+    assert bool(m.loc[pd.Timestamp("2024-07-31"), "200"]) is True
+
+
 def test_empty_inputs():
     assert forecast_revision(pd.DataFrame()).empty
     assert earnings_surprise(pd.DataFrame()).empty
+    assert expected_announcement_month(pd.DataFrame(), [pd.Timestamp("2024-01-31")]).empty

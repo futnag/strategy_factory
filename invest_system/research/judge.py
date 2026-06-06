@@ -1,0 +1,148 @@
+"""判定器：任意戦略（の格子）を偽陽性排除メカニズム総動員で厳格に裁く。
+
+中核思想＝「人が判定器をp-hackできないこと」：
+- 全試行を TrialRegistry に scope 単位で事前登録（仮説＋経済的合理性が必須）。
+- パラメータ格子の各点も独立した試行＝scope の K に算入。
+- 各戦略の DSR は scope の K と Sharpe 分散でデフレート（試行を増やすほど基準が
+  上がる＝「通るまで回す」が効かない）。
+- 併せて PSR(真SR>0)・minTRL（認定に要する観測長）・サブ期間安定性・回転率・
+  最大DD も報告し、PASS/FAIL を構造化レポートで返す。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
+
+from ..validation.dsr import (
+    _moments, min_track_record_length, probabilistic_sharpe_ratio,
+)
+from ..validation.registry import TrialRegistry
+from .engine import backtest
+
+
+@dataclass
+class StrategyVerdict:
+    name: str
+    params: dict
+    n: int
+    sr_ann: float
+    psr: float
+    dsr: float
+    min_trl: float
+    turnover: float
+    max_dd: float
+    hit: float
+    sub: list = field(default_factory=list)   # [(label, ann_sharpe)]
+
+
+@dataclass
+class GridVerdict:
+    scope: str
+    k: int
+    sr_var: float
+    results: list           # StrategyVerdict, DSR降順
+    best: object
+    passed: bool
+    report_md: str
+
+
+def _maxdd(r: pd.Series) -> float:
+    cum = (1.0 + r).cumprod()
+    return float((cum / cum.cummax() - 1.0).min())
+
+
+def _hit(r: pd.Series, npos: pd.Series) -> float:
+    active = r[npos.reindex(r.index).fillna(0) > 0]
+    return float((active > 0).mean()) if len(active) else float("nan")
+
+
+def _subperiods(r: pd.Series, ann: float, k: int = 3) -> list:
+    out = []
+    for idx in np.array_split(np.arange(len(r)), k):
+        s = r.iloc[idx]
+        lbl = f"{s.index[0]:%Y-%m}..{s.index[-1]:%Y-%m}"
+        sh = (s.mean() / s.std(ddof=1) * np.sqrt(ann)
+              if len(s) >= 2 and s.std(ddof=1) > 0 else float("nan"))
+        out.append((lbl, sh))
+    return out
+
+
+def judge_grid(strategies, view, *, scope: str, hypothesis: str,
+               economic_rationale: str, registry: TrialRegistry,
+               costs_bps: float = 15.0, price_field: str = "close",
+               rebalance=None, dsr_threshold: float = 0.95) -> GridVerdict:
+    """戦略群（格子）を裁く。各点を事前登録＋記録し、scope の K でデフレート。"""
+    staged = []   # (strategy, result, returns, uuid)
+    for s in strategies:
+        res = backtest(s, view, costs_bps=costs_bps, price_field=price_field,
+                       rebalance=rebalance)
+        r = res.returns.dropna()
+        if r.size < 8 or r.std(ddof=1) == 0:
+            continue
+        sr, sk, ku, n = _moments(r.values)
+        uid = registry.preregister(scope=scope, hypothesis=hypothesis,
+                                   economic_rationale=economic_rationale,
+                                   strategy_id=s.name, params=s.params)
+        registry.record_result(uid, sharpe=sr, n_obs=n, skew=sk, kurt=ku)
+        staged.append((s, res, r, uid))
+
+    results = []
+    for s, res, r, uid in staged:
+        sr, sk, ku, n = _moments(r.values)
+        dsr = registry.deflated_sharpe(uid)         # scope の K と V[SR] で自動デフレート
+        psr = probabilistic_sharpe_ratio(sr, 0.0, n, sk, ku)
+        try:
+            mtrl = min_track_record_length(sr, 0.0, sk, ku, 0.95)
+        except ValueError:
+            mtrl = float("inf")
+        results.append(StrategyVerdict(
+            s.name, s.params, n, sr * np.sqrt(res.ann_factor), psr, dsr, mtrl,
+            float(res.turnover.mean()), _maxdd(r), _hit(r, res.n_positions),
+            _subperiods(r, res.ann_factor)))
+
+    results.sort(key=lambda v: v.dsr if not np.isnan(v.dsr) else -9, reverse=True)
+    best = results[0] if results else None
+    passed = bool(best and not np.isnan(best.dsr) and best.dsr >= dsr_threshold)
+    k = registry.trial_count(scope)
+    sr_var = registry.sharpe_variance(scope)
+    report = _render(scope, k, sr_var, results, best, passed, hypothesis,
+                     dsr_threshold)
+    return GridVerdict(scope, k, sr_var, results, best, passed, report)
+
+
+def _render(scope, k, sr_var, results, best, passed, hypothesis,
+            thr) -> str:
+    lines = [
+        f"# 判定レポート: {scope}",
+        f"- 仮説: {hypothesis}",
+        f"- 試行数 K（この scope の累計）= **{k}**, 試行間SR分散 V[SR]={sr_var:.4f}",
+        f"- 判定基準: DSR ≥ {thr}",
+        "",
+        "| strategy | SR(ann) | PSR(>0) | **DSR** | minTRL(月) | 回転 | maxDD |",
+        "|---|--:|--:|--:|--:|--:|--:|",
+    ]
+    for v in results:
+        mtrl = "∞" if np.isinf(v.min_trl) else f"{v.min_trl:.0f}"
+        lines.append(
+            f"| {v.name} | {v.sr_ann:+.2f} | {v.psr:.2f} | **{v.dsr:.2f}** | "
+            f"{mtrl} | {v.turnover:.2f} | {v.max_dd:.1%} |")
+    lines.append("")
+    if passed:
+        lines.append(f"## 判定: ✅ PASS — {best.name}（DSR={best.dsr:.3f} ≥ {thr}）")
+        lines.append("多重検定後も有意。ただし実運用前に厳密OOS／容量／執行を要確認。")
+    else:
+        if best:
+            seg = "  ".join(f"{l}:{s:+.2f}" for l, s in best.sub)
+            lines.append(f"## 判定: ❌ FAIL — 最良 {best.name} でも "
+                         f"DSR={best.dsr:.2f} < {thr}")
+            lines.append(f"- 最良の内訳: SR(ann)={best.sr_ann:+.2f}, "
+                         f"PSR(>0)={best.psr:.2f}, minTRL="
+                         f"{'∞' if np.isinf(best.min_trl) else f'{best.min_trl:.0f}か月'}")
+            lines.append(f"- サブ期間: {seg}")
+        else:
+            lines.append("## 判定: ❌ FAIL — 有効な戦略なし（データ/最小要件不足）")
+        lines.append(f"- K={k} 試行に対しデフレート済み。**試行を増やすほど基準は上がる**"
+                     "（＝判定器自体のp-hack不能）。")
+    return "\n".join(lines)

@@ -8,6 +8,8 @@
 """
 
 from .data_view import AsOf, AsOfView
+from .engine import BacktestResult, backtest
+from .judge import GridVerdict, StrategyVerdict, judge_grid
 from .strategy import CrossSectionalStrategy, GapReversal, Strategy
 
 __all__ = [
@@ -16,4 +18,9 @@ __all__ = [
     "Strategy",
     "GapReversal",
     "CrossSectionalStrategy",
+    "backtest",
+    "BacktestResult",
+    "judge_grid",
+    "GridVerdict",
+    "StrategyVerdict",
 ]

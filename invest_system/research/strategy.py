@@ -60,6 +60,32 @@ class GapReversal(Strategy):
         return pd.Series({c: w for c in held}, dtype="float64")
 
 
+class SignalTimingStrategy(Strategy):
+    """単一銘柄（指数等）を、外部シグナルの符号でタイミング建玉する時系列戦略。
+
+    signal は publication-lag 反映済み（index=利用可能日, 値=シグナル）。各リバランス日
+    t で「t 以前の最新シグナル」が threshold を超えれば side 方向に建玉、否なら現金。
+    投資部門別フロー→TOPIX のような需給タイミング戦略を判定器に載せるためのIF。
+    """
+
+    def __init__(self, signal: pd.Series, code: str, threshold: float = 0.0,
+                 side: int = 1, name: str | None = None):
+        self.signal = signal.sort_index()
+        self.code = code
+        self.threshold = float(threshold)
+        self.side = int(side)
+        self.name = name or f"signal_timing({code},th={threshold:g},side={side:+d})"
+        self.params = {"code": code, "threshold": threshold, "side": side}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        s = self.signal.loc[:asof.asof]                # t 以前の最新（先読み無し）
+        if s.empty or pd.isna(s.iloc[-1]):
+            return pd.Series(dtype="float64")
+        if s.iloc[-1] > self.threshold:
+            return pd.Series({self.code: float(self.side)}, dtype="float64")
+        return pd.Series(dtype="float64")
+
+
 class CrossSectionalStrategy(Strategy):
     """事前計算済みの PIT ファクターをロングショートに変換する戦略。
 

@@ -4,7 +4,9 @@ import pandas as pd
 import pytest
 
 from invest_system.research.data_view import AsOfView
-from invest_system.research.strategy import CrossSectionalStrategy, GapReversal
+from invest_system.research.strategy import (
+    CrossSectionalStrategy, GapReversal, SignalTimingStrategy,
+)
 
 
 def _ohlc():
@@ -59,6 +61,26 @@ def test_gap_reversal_short_side():
     a = AsOfView(panels).asof(idx[2])
     w = GapReversal(threshold=0.10, side=-1).target_weights(a)
     assert w["A"] == pytest.approx(-1.0)
+
+
+# --- SignalTimingStrategy --------------------------------------------------
+def test_signal_timing_long_when_positive_else_flat():
+    idx = pd.date_range("2024-01-31", periods=3, freq="ME")
+    close = pd.DataFrame({"0000": [100., 101, 102]}, index=idx)
+    signal = pd.Series([0.5, -0.2, 0.3], index=idx)     # index=利用可能日
+    view = AsOfView({"close": close})
+    strat = SignalTimingStrategy(signal, code="0000", threshold=0.0, side=1)
+    assert strat.target_weights(view.asof(idx[0]))["0000"] == 1.0   # 0.5>0 → ロング
+    assert strat.target_weights(view.asof(idx[1])).empty            # 直近-0.2 → 現金
+
+
+def test_signal_timing_no_future_signal():
+    idx = pd.date_range("2024-01-31", periods=2, freq="ME")
+    close = pd.DataFrame({"0000": [100., 101]}, index=idx)
+    # シグナルは将来日付のみ → asof 時点では参照不可 → 現金
+    signal = pd.Series([0.9], index=[idx[1]])
+    strat = SignalTimingStrategy(signal, code="0000")
+    assert strat.target_weights(AsOfView({"close": close}).asof(idx[0])).empty
 
 
 # --- CrossSectionalStrategy ------------------------------------------------

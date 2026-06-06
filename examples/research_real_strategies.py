@@ -91,10 +91,11 @@ def strategy_b_value(reg):
     grid = [CrossSectionalStrategy(bm, quantile=q, name=f"value_bm(q={q})")
             for q in (0.1, 0.2, 0.3)]
     print(f"月次 {adj.shape[0]}本 × superset {adj.shape[1]}銘柄, 格子 {len(grid)}通り")
+    adv = turn.reindex(columns=superset)              # 売買代金(¥)を ADV 代理に
     v = judge_grid(grid, view, scope="value_xs",
                    hypothesis="割安（高 book/market）銘柄は割高銘柄を中長期で上回る",
                    economic_rationale="リスク/行動バイアスに基づくバリュー・プレミアムの持続を仮定",
-                   registry=reg, costs_bps=15.0)
+                   registry=reg, costs_bps=15.0, adv=adv, participation=0.1)
     print(v.report_md)
 
 

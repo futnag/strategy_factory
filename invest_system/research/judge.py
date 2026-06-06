@@ -35,6 +35,7 @@ class StrategyVerdict:
     max_dd: float
     hit: float
     sub: list = field(default_factory=list)   # [(label, ann_sharpe)]
+    capacity_jpy: float = float("nan")        # 容量(¥)
 
 
 @dataclass
@@ -69,15 +70,32 @@ def _subperiods(r: pd.Series, ann: float, k: int = 3) -> list:
     return out
 
 
+def _fmt_cap(x: float) -> str:
+    """容量(¥)を読みやすく整形。"""
+    if x is None or np.isnan(x):
+        return "—"
+    if x >= 1e8:
+        return f"¥{x / 1e8:.0f}億"
+    if x >= 1e4:
+        return f"¥{x / 1e4:.0f}万"
+    return f"¥{x:.0f}"
+
+
 def judge_grid(strategies, view, *, scope: str, hypothesis: str,
                economic_rationale: str, registry: TrialRegistry,
                costs_bps: float = 15.0, price_field: str = "close",
-               rebalance=None, dsr_threshold: float = 0.95) -> GridVerdict:
-    """戦略群（格子）を裁く。各点を事前登録＋記録し、scope の K でデフレート。"""
+               rebalance=None, dsr_threshold: float = 0.95,
+               execution_lag: int = 0, adv=None, participation: float = 0.1
+               ) -> GridVerdict:
+    """戦略群（格子）を裁く。各点を事前登録＋記録し、scope の K でデフレート。
+
+    execution_lag/adv/participation はバックテストの現実性（執行遅延・容量）に渡す。
+    """
     staged = []   # (strategy, result, returns, uuid)
     for s in strategies:
         res = backtest(s, view, costs_bps=costs_bps, price_field=price_field,
-                       rebalance=rebalance)
+                       rebalance=rebalance, execution_lag=execution_lag,
+                       adv=adv, participation=participation)
         r = res.returns.dropna()
         if r.size < 8 or r.std(ddof=1) == 0:
             continue
@@ -100,7 +118,7 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
         results.append(StrategyVerdict(
             s.name, s.params, n, sr * np.sqrt(res.ann_factor), psr, dsr, mtrl,
             float(res.turnover.mean()), _maxdd(r), _hit(r, res.n_positions),
-            _subperiods(r, res.ann_factor)))
+            _subperiods(r, res.ann_factor), res.capacity_jpy))
 
     results.sort(key=lambda v: v.dsr if not np.isnan(v.dsr) else -9, reverse=True)
     best = results[0] if results else None
@@ -120,14 +138,14 @@ def _render(scope, k, sr_var, results, best, passed, hypothesis,
         f"- 試行数 K（この scope の累計）= **{k}**, 試行間SR分散 V[SR]={sr_var:.4f}",
         f"- 判定基準: DSR ≥ {thr}",
         "",
-        "| strategy | SR(ann) | PSR(>0) | **DSR** | minTRL(月) | 回転 | maxDD |",
-        "|---|--:|--:|--:|--:|--:|--:|",
+        "| strategy | SR(ann) | PSR(>0) | **DSR** | minTRL(月) | 回転 | maxDD | 容量 |",
+        "|---|--:|--:|--:|--:|--:|--:|--:|",
     ]
     for v in results:
         mtrl = "∞" if np.isinf(v.min_trl) else f"{v.min_trl:.0f}"
         lines.append(
             f"| {v.name} | {v.sr_ann:+.2f} | {v.psr:.2f} | **{v.dsr:.2f}** | "
-            f"{mtrl} | {v.turnover:.2f} | {v.max_dd:.1%} |")
+            f"{mtrl} | {v.turnover:.2f} | {v.max_dd:.1%} | {_fmt_cap(v.capacity_jpy)} |")
     lines.append("")
     if passed:
         lines.append(f"## 判定: ✅ PASS — {best.name}（DSR={best.dsr:.3f} ≥ {thr}）")

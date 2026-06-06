@@ -62,6 +62,7 @@ def main() -> int:
             print(f"  {i}/{len(codes)}")
     adjc = build_panel(frames, "AdjC")
     adjo = build_panel(frames, "AdjO").reindex(adjc.index)
+    advp = build_panel(frames, "Va").reindex(adjc.index)   # 売買代金=容量用ADV
     print(f"パネル: {adjc.shape[0]} 営業日 × {adjc.shape[1]} 銘柄")
 
     view = AsOfView({"open": adjo, "close": adjc})
@@ -74,7 +75,7 @@ def main() -> int:
             grid, view, scope="gap_reversal_demo",
             hypothesis="大幅な寄りギャップダウン後、過剰反応の修正で短期リバーサルが起きる",
             economic_rationale="流動性ショックや強制売りによる一時的ミスプライスが数日で解消される行動仮説",
-            registry=reg, costs_bps=15.0)
+            registry=reg, costs_bps=15.0, execution_lag=1, adv=advp, participation=0.1)
     print(verdict.report_md)
     print(f"\n（参考）格子{len(grid)}通り＝独立試行{verdict.k}としてデフレート。"
           "1つでも閾値0.95を超えれば PASS、超えねば『このアイデアにエッジ無し』。")

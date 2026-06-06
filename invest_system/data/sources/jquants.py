@@ -418,10 +418,12 @@ def fetch_index_bars(code: Optional[str] = None, date: Optional[str] = None,
 
 def fetch_investor_types(section: Optional[str] = None, date: Optional[str] = None,
                          frm: Optional[str] = None, to: Optional[str] = None,
-                         api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
+                         api_key: Optional[str] = None, refresh: bool = False,
+                         canonical: bool = False) -> pd.DataFrame:
     """投資部門別売買状況 /equities/investor-types（週次・市場区分別の主体別売買）。
 
     section/date/from-to を任意指定（無指定は全件）。from/to だけで全履歴を一括取得可。
+    canonical=True は範囲に依らず固定ファイル(all.parquet)へ保存（差分更新の維持用）。
     列: PubDate/StDate/EnDate/Section ＋ 13主体×Sell/Buy/Tot/Bal（Frgn海外, Ind個人 等）。
     """
     params: dict = {}
@@ -438,6 +440,6 @@ def fetch_investor_types(section: Optional[str] = None, date: Optional[str] = No
     if to:
         params["to"] = _ymd(to)
         parts.append(f"to_{_ymd(to)}")
-    key = "_".join(parts) if parts else "all"
+    key = "all" if canonical else ("_".join(parts) if parts else "all")
     return _fetch_markets("/equities/investor-types", params,
                           _CACHE / "investor_types" / f"{key}.parquet", api_key, refresh)

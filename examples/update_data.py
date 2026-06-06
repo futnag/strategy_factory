@@ -29,15 +29,19 @@ def main() -> int:
     up = DataUpdater()
     target = pd.Timestamp(until) if until else pd.Timestamp.today().normalize()
     print(f"=== 差分更新（〜{target:%Y-%m-%d}）===")
-    maintained = [n for n, d in up.datasets.items() if d.maintained]
-    print(f"対象（maintained）: {maintained}")
-    print("\n[計画] 欠損日数:")
-    for name in maintained:
+    by_date = [n for n, d in up.datasets.items() if d.maintained]
+    refresh = [n for n, d in up.refresh_datasets.items() if d.maintained]
+    print(f"対象: by-date={by_date} / refresh={refresh}")
+    print("\n[計画] by-date 欠損日数:")
+    for name in by_date:
         print(f"  {name}: {len(up.plan(name, target))} 日")
-    print("\n[実行] 欠損日のみ取得:")
+    if refresh:
+        print(f"[計画] refresh（全体を最新化）: {refresh}")
+    print("\n[実行]:")
     rep = up.update(until=until)
-    total = sum(r["fetched"] for r in rep.values())
-    print(f"\n完了: 新規 {total} 件取得。ローカルは最新です。")
+    fetched = sum(r.get("fetched", 0) for r in rep.values())
+    refreshed = sum(r.get("refreshed_rows", 0) for r in rep.values())
+    print(f"\n完了: by-date 新規 {fetched} 件 / refresh {refreshed:,} 行。ローカルは最新です。")
     return 0
 
 

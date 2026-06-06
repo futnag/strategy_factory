@@ -16,7 +16,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .catalog import DATASETS, Dataset
+from .catalog import DATASETS, REFRESH_DATASETS, Dataset
 from .sources import jquants as jq
 
 
@@ -77,9 +77,12 @@ class DataUpdater:
     """差分更新の司令塔。"""
 
     def __init__(self, datasets: Optional[dict] = None,
+                 refresh_datasets: Optional[dict] = None,
                  base: Optional[str] = None, manifest_path: Optional[str] = None,
                  start: str = "2016-06-13"):
         self.datasets = datasets if datasets is not None else DATASETS
+        self.refresh_datasets = (refresh_datasets if refresh_datasets is not None
+                                 else REFRESH_DATASETS)
         self.base = Path(base) if base else jq._CACHE
         self.manifest = Manifest(Path(manifest_path) if manifest_path
                                  else self.base / "manifest.json")
@@ -94,12 +97,19 @@ class DataUpdater:
 
     def update(self, names: Optional[list[str]] = None, until=None,
                verbose: bool = True) -> dict:
-        """maintained データセット（または指定）を until まで最新化。"""
+        """maintained データセット（または指定）を until まで最新化。
+
+        by-date 系（欠損日のみ取得）と range-refresh 系（指数・投資部門別を全体再取得）の
+        両方を対象にする。
+        """
         until = pd.Timestamp(until) if until else pd.Timestamp.today().normalize()
+        until_s = until.strftime("%Y-%m-%d")
         if names is None:
-            names = [n for n, d in self.datasets.items() if d.maintained]
+            names = ([n for n, d in self.datasets.items() if d.maintained]
+                     + [n for n, d in self.refresh_datasets.items() if d.maintained])
         report: dict = {}
-        for name in names:
+        # by-date：欠損日のみ取得
+        for name in [n for n in names if n in self.datasets]:
             ds = self.datasets[name]
             miss = self.plan(name, until)
             got = 0
@@ -115,4 +125,16 @@ class DataUpdater:
             report[name] = {"missing": len(miss), "fetched": got}
             if verbose:
                 print(f"  {name}: 欠損{len(miss)} → 取得{got}")
+        # range-refresh：全体を最新化（指数・投資部門別）
+        for name in [n for n in names if n in self.refresh_datasets]:
+            spec = self.refresh_datasets[name]
+            try:
+                rows = spec.refresh(self.start, until_s)
+                report[name] = {"refreshed_rows": rows}
+                if verbose:
+                    print(f"  {name}: 再取得 {rows:,} 行")
+            except Exception as e:  # noqa: BLE001
+                report[name] = {"error": str(e)[:80]}
+                if verbose:
+                    print(f"  [warn] {name}: {str(e)[:70]}")
         return report

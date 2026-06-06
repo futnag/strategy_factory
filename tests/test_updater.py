@@ -43,7 +43,7 @@ def test_manifest_roundtrip(tmp_path):
 def test_updater_fetches_only_missing_idempotent(tmp_path):
     calls = []
     ds = Dataset("mock", "daily", "mock", lambda d: calls.append(d), _suffix_date)
-    up = DataUpdater(datasets={"mock": ds}, base=str(tmp_path),
+    up = DataUpdater(datasets={"mock": ds}, refresh_datasets={}, base=str(tmp_path),
                      manifest_path=str(tmp_path / "m.json"), start="2024-01-01")
     rep = up.update(until="2024-01-05", verbose=False)
     assert rep["mock"] == {"missing": 5, "fetched": 5}
@@ -62,7 +62,19 @@ def test_update_default_targets_maintained_only(tmp_path):
         "b": Dataset("b", "daily", "b", lambda d: seen["b"].append(d), _suffix_date,
                      maintained=False),
     }
-    up = DataUpdater(datasets=dsets, base=str(tmp_path),
+    up = DataUpdater(datasets=dsets, refresh_datasets={}, base=str(tmp_path),
                      manifest_path=str(tmp_path / "m.json"), start="2024-01-01")
     up.update(until="2024-01-03", verbose=False)   # 既定= maintained のみ
     assert len(seen["a"]) == 3 and seen["b"] == []
+
+
+def test_refresh_dataset_invoked(tmp_path):
+    from invest_system.data.catalog import RefreshSpec
+    calls = []
+    spec = RefreshSpec("idx", lambda s, u: (calls.append((s, u)), 42)[1])
+    up = DataUpdater(datasets={}, refresh_datasets={"idx": spec},
+                     base=str(tmp_path), manifest_path=str(tmp_path / "m.json"),
+                     start="2016-06-13")
+    rep = up.update(until="2026-06-06", verbose=False)
+    assert rep["idx"] == {"refreshed_rows": 42}
+    assert calls == [("2016-06-13", "2026-06-06")]

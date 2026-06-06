@@ -79,3 +79,38 @@ def test_deflated_sharpe_requires_completed_trial():
                           economic_rationale="rationale text here")
     with pytest.raises(ValueError):
         reg.deflated_sharpe(tid)
+
+
+# --- log_trial（冪等記録・永続グローバル運用） -----------------------------
+_KW = dict(hypothesis="a priori hypothesis text", rationale="economic rationale text",
+           n_obs=120, skew=0.0, kurt=3.0)
+
+
+def test_log_trial_idempotent_counts_distinct():
+    reg = _reg()
+    reg.log_trial(scope="s", strategy_id="gap", params={"th": 0.1}, sharpe=0.1, **_KW)
+    reg.log_trial(scope="s", strategy_id="gap", params={"th": 0.1}, sharpe=0.9, **_KW)
+    assert reg.trial_count("s") == 1                 # 同一指紋 → 水増ししない（upsert）
+    reg.log_trial(scope="s", strategy_id="gap", params={"th": 0.2}, sharpe=0.1, **_KW)
+    assert reg.trial_count("s") == 2                 # 別params → +1
+    reg.log_trial(scope="s", strategy_id="gap2", params={"th": 0.1}, sharpe=0.1, **_KW)
+    assert reg.trial_count("s") == 3                 # 別戦略 → +1
+
+
+def test_log_trial_persists_across_connections(tmp_path):
+    db = str(tmp_path / "t.db")
+    with TrialRegistry(db) as r:
+        r.log_trial(scope="s", strategy_id="a", params={"q": 0.2}, sharpe=0.1, **_KW)
+    with TrialRegistry(db) as r2:                    # 別接続＝セッション跨ぎ
+        assert r2.trial_count("s") == 1              # 永続化されている
+        r2.log_trial(scope="s", strategy_id="a", params={"q": 0.2}, sharpe=0.5, **_KW)
+        assert r2.trial_count("s") == 1              # 再実行は冪等
+        r2.log_trial(scope="s", strategy_id="a", params={"q": 0.3}, sharpe=0.1, **_KW)
+        assert r2.trial_count("s") == 2              # 新規変種は累積
+
+
+def test_log_trial_requires_a_priori_theory():
+    reg = _reg()
+    with pytest.raises(ValueError):
+        reg.log_trial(scope="s", strategy_id="a", params={}, sharpe=0.1,
+                      n_obs=100, skew=0.0, kurt=3.0, hypothesis="x", rationale="y")

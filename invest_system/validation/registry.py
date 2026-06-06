@@ -9,10 +9,12 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS trials (
     kurt               REAL,
     returns_hash       TEXT,
     extra_json         TEXT,
+    fingerprint        TEXT,
     preregistered_at   TEXT NOT NULL,
     completed_at       TEXT
 );
@@ -47,6 +50,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _fingerprint(scope: str, strategy_id: str, params: Optional[dict]) -> str:
+    """試行の指紋（scope＋戦略＋パラメータ）。同一試行の再実行を冪等にする。"""
+    payload = f"{scope}|{strategy_id}|{json.dumps(params or {}, sort_keys=True, ensure_ascii=False)}"
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def default_registry(path: str = "data/research_trials.db") -> "TrialRegistry":
+    """永続グローバル・レジストリ（data/ 配下＝gitignore済、セッション跨ぎで累積）。"""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    return TrialRegistry(path)
+
+
 class TrialRegistry:
     """SQLite を背後に持つ改竄不能な試行台帳。"""
 
@@ -54,6 +69,10 @@ class TrialRegistry:
         self._conn = sqlite3.connect(db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute(_SCHEMA)
+        # 既存DBに fingerprint 列が無ければ追加（前方互換）
+        cols = [r["name"] for r in self._conn.execute("PRAGMA table_info(trials)")]
+        if "fingerprint" not in cols:
+            self._conn.execute("ALTER TABLE trials ADD COLUMN fingerprint TEXT")
         self._conn.commit()
 
     # --- 事前登録ゲート -------------------------------------------------
@@ -99,6 +118,42 @@ class TrialRegistry:
         )
         self._conn.commit()
 
+    # --- 冪等記録（永続グローバル運用向け） ---------------------------
+    def log_trial(self, *, scope: str, strategy_id: str, params: Optional[dict],
+                  sharpe: float, n_obs: int, skew: float, kurt: float,
+                  hypothesis: str, rationale: str) -> str:
+        """事前登録＋結果を一括記録（指紋でUPSERT＝再実行は冪等）。
+
+        同一 (scope, strategy_id, params) の再実行は新規カウントせず結果のみ更新
+        （K を水増ししない）。新パラメータは新規試行＝K を増やす。仮説・経済的
+        合理性は必須（a priori 理論の強制）。返り値 uuid。
+        """
+        if len(hypothesis.strip()) < _MIN_TEXT:
+            raise ValueError("hypothesis is required (state the a priori theory)")
+        if len(rationale.strip()) < _MIN_TEXT:
+            raise ValueError("economic_rationale is required (state the a priori theory)")
+        fp = _fingerprint(scope, strategy_id, params)
+        row = self._conn.execute(
+            "SELECT uuid FROM trials WHERE scope=? AND fingerprint=?", (scope, fp)
+        ).fetchone()
+        if row is not None:
+            self._conn.execute(
+                "UPDATE trials SET sharpe=?, n_obs=?, skew=?, kurt=?, completed_at=? "
+                "WHERE uuid=?", (sharpe, n_obs, skew, kurt, _now(), row["uuid"]))
+            self._conn.commit()
+            return row["uuid"]
+        tid = str(uuid.uuid4())
+        self._conn.execute(
+            "INSERT INTO trials (uuid, scope, strategy_id, hypothesis, "
+            "economic_rationale, params_json, status, sharpe, n_obs, skew, kurt, "
+            "fingerprint, preregistered_at, completed_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (tid, scope, strategy_id, hypothesis.strip(), rationale.strip(),
+             json.dumps(params or {}, ensure_ascii=False), "completed",
+             sharpe, n_obs, skew, kurt, fp, _now(), _now()))
+        self._conn.commit()
+        return tid
+
     # --- 集計（DSR 用） ------------------------------------------------
     def trial_count(self, scope: str) -> int:
         """scope 内の完了試行数 K（DSR の試行数）。"""
@@ -118,6 +173,14 @@ class TrialRegistry:
         if len(vals) < 2:
             return 0.0
         return float(np.var(vals, ddof=1))
+
+    def list_scopes(self) -> list:
+        """[(scope, K, sr_variance)] 一覧（完了試行のみ）。永続レジストリの俯瞰用。"""
+        rows = self._conn.execute(
+            "SELECT scope, COUNT(*) AS k FROM trials WHERE status='completed' "
+            "GROUP BY scope ORDER BY scope").fetchall()
+        return [(r["scope"], int(r["k"]), self.sharpe_variance(r["scope"]))
+                for r in rows]
 
     def deflated_sharpe(self, trial_uuid: str) -> float:
         """指定試行の DSR を、その scope の K と Sharpe 分散から自動算出。"""

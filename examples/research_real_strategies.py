@@ -32,7 +32,7 @@ from invest_system.equities.factors import (  # noqa: E402
 from invest_system.research import (  # noqa: E402
     AsOfView, CrossSectionalStrategy, SignalTimingStrategy, judge_grid,
 )
-from invest_system.validation.registry import TrialRegistry  # noqa: E402
+from invest_system.validation.registry import default_registry  # noqa: E402
 
 START, END = "2016-07", "2026-05"
 
@@ -102,10 +102,14 @@ def main() -> int:
     if not get_env("J_QUANTS_API_KEY"):
         print("ERROR: .env に J_QUANTS_API_KEY が必要です。")
         return 1
-    with TrialRegistry(":memory:") as reg:
+    with default_registry() as reg:           # 永続グローバル・レジストリ（累積）
         strategy_a_flow_timing(reg)
         strategy_b_value(reg)
-    print("\n＝検証ファクトリで実戦略2本を厳格判定。判定器が偽陽性を一貫排除。")
+        print("\n=== 永続レジストリ（scope別 累計試行 K）===")
+        for scope, k, srv in reg.list_scopes():
+            print(f"  {scope:<22} K={k}  V[SR]={srv:.4f}")
+    print("\n＝判定は永続レジストリに累積。再実行は冪等（Kを水増ししない）、")
+    print("  新パラメータは K を増やし全戦略のDSRを下げる＝真のグローバル・デフレート。")
     return 0
 
 

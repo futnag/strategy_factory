@@ -20,7 +20,7 @@ from invest_system.config import get_env  # noqa: E402
 from invest_system.data.sources import jquants as jq  # noqa: E402
 from invest_system.equities.universe import filter_common_stocks  # noqa: E402
 from invest_system.research import AsOfView, GapReversal, judge_grid  # noqa: E402
-from invest_system.validation.registry import TrialRegistry  # noqa: E402
+from invest_system.validation.registry import default_registry  # noqa: E402
 
 START = get_env("J_EQ_START_D", "2020-01-01") or "2020-01-01"
 END = get_env("J_EQ_END_D", "2026-05-31") or "2026-05-31"
@@ -69,7 +69,7 @@ def main() -> int:
             for th in (0.05, 0.08, 0.10) for h in (1, 5) for s in (1, -1)]
     print(f"戦略格子: {len(grid)} 通り（threshold×hold×side）\n")
 
-    with TrialRegistry(":memory:") as reg:
+    with default_registry() as reg:
         verdict = judge_grid(
             grid, view, scope="gap_reversal_demo",
             hypothesis="大幅な寄りギャップダウン後、過剰反応の修正で短期リバーサルが起きる",

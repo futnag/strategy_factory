@@ -82,10 +82,10 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
         if r.size < 8 or r.std(ddof=1) == 0:
             continue
         sr, sk, ku, n = _moments(r.values)
-        uid = registry.preregister(scope=scope, hypothesis=hypothesis,
-                                   economic_rationale=economic_rationale,
-                                   strategy_id=s.name, params=s.params)
-        registry.record_result(uid, sharpe=sr, n_obs=n, skew=sk, kurt=ku)
+        # 冪等記録：同一(scope,戦略,params)の再実行はKを水増ししない（永続運用向け）
+        uid = registry.log_trial(scope=scope, strategy_id=s.name, params=s.params,
+                                 sharpe=sr, n_obs=n, skew=sk, kurt=ku,
+                                 hypothesis=hypothesis, rationale=economic_rationale)
         staged.append((s, res, r, uid))
 
     results = []

@@ -84,9 +84,15 @@ _NUMERIC = [
     "SellExShortVa", "ShrtWithResVa", "ShrtNoResVa",
     "ShrtPosToSO", "ShrtPosShares", "ShrtPosUnits", "PrevRptRatio",
 ]
+# 投資部門別売買状況 /equities/investor-types（13主体 × Sell/Buy/Tot/Bal）。
+# Prop自己 Brk委託 Tot総計 Ind個人 Frgn海外 SecCo証券 InvTr投信 BusCo事業法人
+# OthCoその他法人 InsCo生損保 Bank都銀地銀 TrstBnk信託 OthFinその他金融。
+_INV_TYPES = ("Prop", "Brk", "Tot", "Ind", "Frgn", "SecCo", "InvTr", "BusCo",
+              "OthCo", "InsCo", "Bank", "TrstBnk", "OthFin")
+_NUMERIC += [f"{t}{s}" for t in _INV_TYPES for s in ("Sell", "Buy", "Tot", "Bal")]
 _DATE_COLS = ["Date", "DiscDate", "DisclosedDate", "CurrentPeriodEndDate",
               "CurrentFiscalYearEndDate",
-              "PubDate", "AppDate", "CalcDate", "PrevRptDate"]
+              "PubDate", "AppDate", "CalcDate", "PrevRptDate", "StDate", "EnDate"]
 
 
 def _request(url: str, headers: dict, timeout: int = 60) -> dict:
@@ -386,3 +392,52 @@ def fetch_calendar(frm: Optional[str] = None, to: Optional[str] = None,
     cache.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cache)
     return df
+
+
+def fetch_index_bars(code: Optional[str] = None, date: Optional[str] = None,
+                     frm: Optional[str] = None, to: Optional[str] = None,
+                     api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
+    """株価指数四本値 /indices/bars/daily（code別=その指数の全履歴 / date別=全指数）。
+
+    列: Date, Code, O/H/L/C（出来高なし）。TOPIX=0000。code は from/to 可。
+    """
+    if not (code or date):
+        raise ValueError("code か date が必要")
+    params: dict = {}
+    if code:
+        params["code"], key = code, f"code_{code}"
+    else:
+        params["date"], key = _ymd(date), f"date_{_ymd(date)}"
+    if frm:
+        params["from"] = _ymd(frm)
+    if to:
+        params["to"] = _ymd(to)
+    return _fetch_markets("/indices/bars/daily", params,
+                          _CACHE / "indices" / f"{key}.parquet", api_key, refresh)
+
+
+def fetch_investor_types(section: Optional[str] = None, date: Optional[str] = None,
+                         frm: Optional[str] = None, to: Optional[str] = None,
+                         api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
+    """投資部門別売買状況 /equities/investor-types（週次・市場区分別の主体別売買）。
+
+    section/date/from-to を任意指定（無指定は全件）。from/to だけで全履歴を一括取得可。
+    列: PubDate/StDate/EnDate/Section ＋ 13主体×Sell/Buy/Tot/Bal（Frgn海外, Ind個人 等）。
+    """
+    params: dict = {}
+    parts: list = []
+    if section:
+        params["section"] = section
+        parts.append(f"sec_{section}")
+    if date:
+        params["date"] = _ymd(date)
+        parts.append(f"date_{_ymd(date)}")
+    if frm:
+        params["from"] = _ymd(frm)
+        parts.append(f"from_{_ymd(frm)}")
+    if to:
+        params["to"] = _ymd(to)
+        parts.append(f"to_{_ymd(to)}")
+    key = "_".join(parts) if parts else "all"
+    return _fetch_markets("/equities/investor-types", params,
+                          _CACHE / "investor_types" / f"{key}.parquet", api_key, refresh)

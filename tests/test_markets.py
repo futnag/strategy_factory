@@ -57,5 +57,26 @@ def test_margin_alert_nested_pubreason_jsonified():
     assert json.loads(val)["PrecautionByJSF"] == "1"
 
 
+def test_index_bars_fields():
+    recs = [{"Date": "2026-05-29", "Code": "0000", "O": "3917.83", "H": "3984.58",
+             "L": "3914.77", "C": "3957.17"}]
+    df = parse_markets(recs)
+    assert df["Code"].iloc[0] == "0000"                 # 指数コードは文字列
+    assert df["C"].iloc[0] == pytest.approx(3957.17)
+    assert df["Date"].iloc[0] == pd.Timestamp("2026-05-29")
+
+
+def test_investor_types_fields():
+    recs = [{"PubDate": "2026-05-01", "StDate": "2026-04-20", "EnDate": "2026-04-24",
+             "Section": "TSEPrime", "FrgnSell": "100", "FrgnBuy": "150",
+             "FrgnBal": "50", "IndBuy": "30", "PropBal": "-5"}]
+    df = parse_markets(recs)
+    assert df["Section"].iloc[0] == "TSEPrime"          # 区分は文字列
+    assert df["FrgnBal"].iloc[0] == 50.0                # 海外差引（数値）
+    assert df["StDate"].iloc[0] == pd.Timestamp("2026-04-20")
+    assert df["EnDate"].iloc[0] == pd.Timestamp("2026-04-24")
+    assert pd.api.types.is_numeric_dtype(df["FrgnBuy"])
+
+
 def test_parse_markets_empty():
     assert parse_markets([]).empty

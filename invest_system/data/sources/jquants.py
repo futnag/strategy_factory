@@ -150,7 +150,8 @@ def _get_paginated(path: str, params: dict, api_key: str) -> list:
 def _coerce(df: pd.DataFrame) -> pd.DataFrame:
     for col in _DATE_COLS:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
+            # format="mixed": "YYYY-MM-DD"/"YYYYMMDD" 混在を要素毎に解釈（警告抑止）
+            df[col] = pd.to_datetime(df[col], errors="coerce", format="mixed")
     for col in _NUMERIC:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")

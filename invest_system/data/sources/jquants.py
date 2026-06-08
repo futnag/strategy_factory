@@ -207,6 +207,13 @@ def _cached(cache: Path, refresh: bool):
     return None
 
 
+def _save_parquet(df: pd.DataFrame, cache: Path) -> None:
+    """空(祝日・無開示日)もマーカー保存して再取得を防ぐ。列無しdfはParquet不可なので
+    マーカー化する。by-date 全営業日ミラー（株価・財務）の冪等・再開性に必要。"""
+    (df if not df.empty
+     else pd.DataFrame({"_empty": pd.Series([], dtype="bool")})).to_parquet(cache)
+
+
 def fetch_listed_info(api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
     cache = _CACHE / "equities_master.parquet"
     hit = _cached(cache, refresh)
@@ -229,7 +236,7 @@ def fetch_daily_quotes(date: str, api_key: Optional[str] = None,
     df = parse_daily_quotes(
         _get_paginated("/equities/bars/daily", {"date": d}, _api_key(api_key)))
     cache.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(cache)
+    _save_parquet(df, cache)            # 空(祝日)もマーカー保存し全営業日ミラーを冪等化
     return df
 
 
@@ -258,16 +265,20 @@ def fetch_daily_history(code: str, frm: Optional[str] = None,
 
 
 def fetch_statements(code: Optional[str] = None, date: Optional[str] = None,
-                     api_key: Optional[str] = None, refresh: bool = False) -> pd.DataFrame:
+                     api_key: Optional[str] = None, refresh: bool = False,
+                     subdir: str = "statements") -> pd.DataFrame:
     """財務サマリー（/fins/summary, code別 or date別）。キャッシュ付き。
 
-    決算短信サマリー（売上/利益/EPS/BPS/純資産等）で、無料プランでも
-    2年/12週遅延の範囲で取得可能。詳細BS/PL/CF(/fins/details)は Premium 限定
-    のため本クライアントでは扱わない（標準的なバリュー/クオリティには不要）。
-    code/date のどちらか一方は必須。
+    決算短信サマリー（売上/利益/EPS/BPS/純資産・配当/予想等）で、Standard では10年。
+    詳細BS/PL/CF(/fins/details)は Premium 限定のため扱わない（標準的なバリュー/クオリティ
+    には不要）。code/date のどちらか一方は必須。
+
+    subdir: キャッシュ先サブディレクトリ。既定 "statements"（銘柄別オンデマンド）。
+    全営業日 by-date ミラー（案A）は subdir="fins_summary" を使い、銘柄別の旧キャッシュと
+    分離する（重複ロード防止）。
     """
     key = (code or (str(date).replace("-", "") if date else None) or "all")
-    cache = _CACHE / "statements" / f"{key}.parquet"
+    cache = _CACHE / subdir / f"{key}.parquet"
     hit = _cached(cache, refresh)
     if hit is not None:
         return hit
@@ -278,7 +289,7 @@ def fetch_statements(code: Optional[str] = None, date: Optional[str] = None,
         params["date"] = str(date).replace("-", "")
     df = parse_statements(_get_paginated("/fins/summary", params, _api_key(api_key)))
     cache.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(cache)
+    _save_parquet(df, cache)            # 空(無開示日)もマーカー保存し by-date を冪等化
     return df
 
 

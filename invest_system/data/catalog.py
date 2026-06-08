@@ -45,14 +45,19 @@ DATASETS: dict[str, Dataset] = {
     "short_positions": Dataset(
         "short_positions", "daily", "short_positions",
         lambda d: jq.fetch_short_positions(calc_date=d), _suffix_date),
+    # 財務サマリー全件ミラー（案A：日付別。その日の全開示企業が返る。銘柄別の旧オンデマンド
+    # キャッシュ statements/ とは別ディレクトリ fins_summary/ に保存し重複ロードを防ぐ）
+    "fins_summary": Dataset(
+        "fins_summary", "daily", "fins_summary",
+        lambda d: jq.fetch_statements(date=d, subdir="fins_summary"), _plain_date),
     # 日経225オプション四本値（IV含む・各営業日の全契約）
     "options_225": Dataset(
         "options_225", "daily", "options_225",
         lambda d: jq.fetch_index_options(d), _plain_date),
-    # 全銘柄日次株価はオンデマンド（完全ミラーしない）
+    # 全銘柄日次株価（日付別・全営業日ミラー）。1日1呼び出しで全銘柄が返るので維持も安価。
     "daily_quotes": Dataset(
         "daily_quotes", "daily", "daily",
-        lambda d: jq.fetch_daily_quotes(d), _plain_date, maintained=False),
+        lambda d: jq.fetch_daily_quotes(d), _plain_date),
 }
 
 

@@ -68,6 +68,24 @@ def test_update_default_targets_maintained_only(tmp_path):
     assert len(seen["a"]) == 3 and seen["b"] == []
 
 
+def test_catalog_has_bydate_mirrors():
+    from invest_system.data.catalog import DATASETS
+    assert "fins_summary" in DATASETS
+    fs = DATASETS["fins_summary"]
+    assert fs.cadence == "daily" and fs.cache_subdir == "fins_summary"
+    assert fs.maintained                                  # 案A：全件ミラー対象
+    assert DATASETS["daily_quotes"].maintained            # 株価も全件ミラーへ変更
+
+
+def test_save_parquet_empty_marker(tmp_path):
+    from invest_system.data.sources.jquants import _save_parquet
+    cache = tmp_path / "x.parquet"
+    _save_parquet(pd.DataFrame(), cache)                  # 空(無開示日)もマーカー保存可
+    assert pd.read_parquet(cache).empty
+    _save_parquet(pd.DataFrame({"a": [1, 2]}), cache)     # 非空はそのまま
+    assert len(pd.read_parquet(cache)) == 2
+
+
 def test_refresh_dataset_invoked(tmp_path):
     from invest_system.data.catalog import RefreshSpec
     calls = []

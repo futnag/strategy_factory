@@ -27,7 +27,7 @@ from invest_system.equities.panel import (  # noqa: E402
     fetch_month_end_snapshots,
     forward_returns,
 )
-from invest_system.equities.fundamentals import point_in_time  # noqa: E402
+from invest_system.equities.fundamentals import load_fundamentals, point_in_time  # noqa: E402
 from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore,
     sector_neutralize,
@@ -67,20 +67,8 @@ QUALITY = ["roe", "roa", "op_margin", "equity_ratio"]
 
 
 def fetch_fundamentals(codes: list[str]) -> pd.DataFrame:
-    """ユニバース各銘柄の財務サマリーを取得して長形式に連結（耐障害・進捗表示）。"""
-    frames = []
-    for i, code in enumerate(codes, 1):
-        try:
-            st = jq.fetch_statements(code=code)
-            if not st.empty:
-                frames.append(st)
-        except Exception as e:  # noqa: BLE001
-            print(f"  [warn] {code}: {e}")
-        if i % 50 == 0:
-            print(f"  fundamentals: {i}/{len(codes)} 取得")
-    if not frames:
-        return pd.DataFrame()
-    return pd.concat(frames, ignore_index=True)
+    # fins_summary/ 全件 by-date ミラーから長形式取得（旧 by-code statements/ も併合・重複除去）
+    return load_fundamentals(codes)
 
 
 def evaluate(name: str, factor: pd.DataFrame, fwd: pd.DataFrame,

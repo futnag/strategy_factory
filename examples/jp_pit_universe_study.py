@@ -27,7 +27,7 @@ from invest_system.equities.universe import (  # noqa: E402
 from invest_system.equities.panel import (  # noqa: E402
     assemble_panel, fetch_month_end_snapshots, forward_returns,
 )
-from invest_system.equities.fundamentals import point_in_time  # noqa: E402
+from invest_system.equities.fundamentals import load_fundamentals, point_in_time  # noqa: E402
 from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors,
 )
@@ -48,17 +48,8 @@ MIN_NAMES, HALFLIFE, SPLIT = 20, 36.0, "2020-01-01"
 
 
 def fetch_fundamentals(codes):
-    fr, n = [], len(codes)
-    for i, c in enumerate(codes, 1):
-        try:
-            st = jq.fetch_statements(code=c)
-            if not st.empty:
-                fr.append(st)
-        except Exception:  # noqa: BLE001
-            pass
-        if i % 100 == 0:
-            print(f"  fundamentals {i}/{n}")
-    return pd.concat(fr, ignore_index=True) if fr else pd.DataFrame()
+    # fins_summary/ 全件 by-date ミラーから長形式取得（旧 by-code statements/ も併合・重複除去）
+    return load_fundamentals(codes)
 
 
 def main() -> int:

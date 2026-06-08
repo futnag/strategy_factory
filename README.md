@@ -7,6 +7,7 @@ statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は
 設計ドキュメント：
 - [`docs/01-knowledge-base.md`](docs/01-knowledge-base.md) — 統合ナレッジベース（原理リファレンス）
 - [`docs/02-system-design.md`](docs/02-system-design.md) — システム設計書 v0.2
+- [`docs/03-research-findings.md`](docs/03-research-findings.md) — 研究知見・検証ファクトリ・データ資産（最新・最重要）
 
 ## 実装済みモジュール
 
@@ -76,6 +77,26 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
 | `portfolio_demo.py` | ポートフォリオ（ノイズ除去・HRP・NCO で Markowitz 安定化） |
 | `end_to_end_demo.py` | 合成データで全部品を連結（特徴量→ラベル→CPCV→DSR） |
 | `bitbank_e2e.py` | 実 BTC/JPY データで End-to-End（ネットワーク必要） |
+
+## 日本株・検証ファクトリ（J-Quants）
+
+任意の戦略の有効性を、蓄積データと検証メソッドで厳密に裁く**検証ファクトリ**
+（`invest_system/research/` ＋ `invest_system/equities/`）。偽陽性を排する設計＝PITデータビュー・
+実行ラグ/コスト/容量の現実モデル・**永続レジストリでの大域デフレートDSR**。詳細と研究知見は
+[`docs/03-research-findings.md`](docs/03-research-findings.md)。
+
+- **データ（J-Quants Standard・全営業日 by-date ミラー）**：株価四本値・財務サマリー・信用/空売り・
+  指数(TOPIX含む)・投資部門別・日経225オプション(IV等)。市場データは利用規約によりコミットせず
+  `data/`（gitignore）にのみ保持。一括取得は手元ターミナルで `examples/download_jquants.py`
+  （Claude 非経由・進捗表示・中断再開）。`.env` に `J_QUANTS_API_KEY` が必要。
+  ```powershell
+  $env:J_QUANTS_MIN_INTERVAL="0.7"; .\.venv\Scripts\python.exe examples\download_jquants.py --all
+  ```
+- **代表的な検証スクリプト**：`research_value_pead_longtilt.py`（最有力候補 value＋ロングティルトPEAD）、
+  `research_breadth_factors.py`（value×momentum×quality×low-vol の多ファクター breadth）。
+- 全ユニバースの財務 as-of は `equities/fundamentals.py` の `fundamentals_panel()`／`load_fundamentals()`
+  （全件ミラーを先読みなしで組立）。ファクターは `equities/factors.py`（value/quality/size/momentum/
+  配当利回り/低ボラ/アクルーアル）。
 
 ## コマンド対応表（PowerShell ↔ bash）
 

@@ -22,7 +22,7 @@ from invest_system.equities.universe import (  # noqa: E402
     universe_members,
 )
 from invest_system.equities.panel import assemble_panel, fetch_month_end_snapshots  # noqa: E402
-from invest_system.equities.fundamentals import point_in_time  # noqa: E402
+from invest_system.equities.fundamentals import load_fundamentals, point_in_time  # noqa: E402
 from invest_system.equities.factors import cross_sectional_zscore, sector_neutralize  # noqa: E402
 from invest_system.research import AsOfView, CrossSectionalStrategy, judge_grid, write_html  # noqa: E402
 from invest_system.validation.registry import default_registry  # noqa: E402
@@ -31,15 +31,8 @@ START, END = "2016-07", "2026-05"
 
 
 def fetch_fundamentals(codes):
-    fr = []
-    for c in codes:
-        try:
-            st = jq.fetch_statements(code=c)
-            if not st.empty:
-                fr.append(st)
-        except Exception:  # noqa: BLE001
-            pass
-    return pd.concat(fr, ignore_index=True) if fr else pd.DataFrame()
+    # fins_summary/ 全件 by-date ミラーから長形式取得（旧 by-code statements/ も併合・重複除去）
+    return load_fundamentals(codes)
 
 
 def main() -> int:

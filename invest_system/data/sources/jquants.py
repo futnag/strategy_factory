@@ -90,9 +90,16 @@ _NUMERIC = [
 _INV_TYPES = ("Prop", "Brk", "Tot", "Ind", "Frgn", "SecCo", "InvTr", "BusCo",
               "OthCo", "InsCo", "Bank", "TrstBnk", "OthFin")
 _NUMERIC += [f"{t}{s}" for t in _INV_TYPES for s in ("Sell", "Buy", "Tot", "Bal")]
+# 日経225オプション四本値 /derivatives/bars/daily/options/225（V2略称）。
+# 日中/ナイトのOHLC、出来高OI、権利行使Strike、清算Settle、理論Theo、IV、原資産UnderPx 等。
+_NUMERIC += [
+    "EO", "EH", "EL", "EC", "AO", "AH", "AL", "AC", "OI", "VoOA",
+    "Strike", "Settle", "Theo", "BaseVol", "UnderPx", "IV", "IR",
+]
 _DATE_COLS = ["Date", "DiscDate", "DisclosedDate", "CurrentPeriodEndDate",
               "CurrentFiscalYearEndDate",
-              "PubDate", "AppDate", "CalcDate", "PrevRptDate", "StDate", "EnDate"]
+              "PubDate", "AppDate", "CalcDate", "PrevRptDate", "StDate", "EnDate",
+              "LTD", "SQD"]
 
 
 def _request(url: str, headers: dict, timeout: int = 60) -> dict:
@@ -443,3 +450,16 @@ def fetch_investor_types(section: Optional[str] = None, date: Optional[str] = No
     key = "all" if canonical else ("_".join(parts) if parts else "all")
     return _fetch_markets("/equities/investor-types", params,
                           _CACHE / "investor_types" / f"{key}.parquet", api_key, refresh)
+
+
+def fetch_index_options(date: str, api_key: Optional[str] = None,
+                        refresh: bool = False) -> pd.DataFrame:
+    """日経225オプション四本値 /derivatives/bars/daily/options/225（指定日の全契約）。
+
+    日中/ナイトのOHLC・出来高Vo・建玉OI・権利行使Strike・限月CM・PutCall区分PCDiv・
+    清算Settle・理論Theo・**IV(インプライドボラ)**・原資産UnderPx 等を含む（1日≈9,600契約）。
+    日付単位で Parquet キャッシュ。インプライドボラ/分散リスクプレミアム/レジーム研究用。
+    """
+    d = _ymd(date)
+    return _fetch_markets("/derivatives/bars/daily/options/225", {"date": d},
+                          _CACHE / "options_225" / f"{d}.parquet", api_key, refresh)

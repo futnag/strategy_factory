@@ -45,6 +45,10 @@ DATASETS: dict[str, Dataset] = {
     "short_positions": Dataset(
         "short_positions", "daily", "short_positions",
         lambda d: jq.fetch_short_positions(calc_date=d), _suffix_date),
+    # 日経225オプション四本値（IV含む・各営業日の全契約）
+    "options_225": Dataset(
+        "options_225", "daily", "options_225",
+        lambda d: jq.fetch_index_options(d), _plain_date),
     # 全銘柄日次株価はオンデマンド（完全ミラーしない）
     "daily_quotes": Dataset(
         "daily_quotes", "daily", "daily",

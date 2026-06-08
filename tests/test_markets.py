@@ -78,5 +78,19 @@ def test_investor_types_fields():
     assert pd.api.types.is_numeric_dtype(df["FrgnBuy"])
 
 
+def test_index_options_fields():
+    recs = [{"Date": "2026-05-29", "Code": "131060018", "O": "0", "C": "5.5",
+             "Strike": "38000", "CM": "2026-06", "PCDiv": "1", "Settle": "5.0",
+             "Theo": "5.2", "UnderPx": "38500", "IV": "0.21", "OI": "1804",
+             "LTD": "2026-06-11", "SQD": "2026-06-12"}]
+    df = parse_markets(recs)
+    assert df["Strike"].iloc[0] == 38000.0
+    assert df["IV"].iloc[0] == pytest.approx(0.21)        # インプライドボラ（数値）
+    assert df["UnderPx"].iloc[0] == 38500.0               # 原資産（NK225）
+    assert df["Code"].iloc[0] == "131060018"              # 契約コードは文字列
+    assert df["PCDiv"].iloc[0] == "1"                     # Put/Call区分は文字列
+    assert df["LTD"].iloc[0] == pd.Timestamp("2026-06-11")  # 最終取引日
+
+
 def test_parse_markets_empty():
     assert parse_markets([]).empty

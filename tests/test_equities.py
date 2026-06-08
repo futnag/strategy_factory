@@ -15,7 +15,9 @@ from invest_system.equities.panel import (
     forward_returns,
     trailing_momentum,
 )
-from invest_system.equities.fundamentals import point_in_time
+from invest_system.equities.fundamentals import (
+    fundamentals_panel, load_fundamentals, point_in_time,
+)
 from invest_system.equities.factors import (
     cross_sectional_residualize,
     cross_sectional_zscore,
@@ -127,6 +129,30 @@ def test_point_in_time_same_day_excluded_by_lag():
     rebal = pd.to_datetime(["2024-01-15"])            # 開示当日
     pit = point_in_time(fund, rebal, ["EPS"], lag_days=1)
     assert np.isnan(pit["EPS"]["100"].loc["2024-01-15"])  # lag=1 で当日は使わない
+
+
+def test_load_fundamentals_unions_and_dedupes(tmp_path):
+    bd = tmp_path / "fins_summary"; bd.mkdir()
+    bc = tmp_path / "statements"; bc.mkdir()
+    # by-date ミラー：ある開示日の全社（2社）
+    pd.DataFrame({"DiscDate": ["2024-05-10", "2024-05-10"], "Code": ["7203", "6758"],
+                  "DiscNo": ["1", "2"], "EPS": [10.0, 20.0]}
+                 ).to_parquet(bd / "20240510.parquet")
+    # 旧 by-code：7203 の履歴（DiscNo=1 は by-date と重複、DiscNo=0 は追加の古い開示）
+    pd.DataFrame({"DiscDate": ["2024-05-10", "2024-02-10"], "Code": ["7203", "7203"],
+                  "DiscNo": ["1", "0"], "EPS": [10.0, 8.0]}
+                 ).to_parquet(bc / "7203.parquet")
+    pd.DataFrame({"_empty": pd.Series([], dtype="bool")}  # 空マーカーは無視
+                 ).to_parquet(bd / "20240101.parquet")
+    out = load_fundamentals(base=str(tmp_path))
+    assert len(out) == 3                                   # 7203:2(重複1除去)＋6758:1
+    only = load_fundamentals(codes=["7203"], base=str(tmp_path))
+    assert set(only["Code"]) == {"7203"} and len(only) == 2
+    # 1呼び出しで as-of パネル組立（5/10開示は lag=1 で 5/13 に反映、5/10当日は未反映）
+    panel = fundamentals_panel(pd.to_datetime(["2024-05-10", "2024-05-13"]),
+                               ["EPS"], base=str(tmp_path), lag_days=1)
+    assert np.isnan(panel["EPS"]["6758"].loc["2024-05-10"])
+    assert panel["EPS"]["6758"].loc["2024-05-13"] == 20.0
 
 
 # --- factors ----------------------------------------------------------------

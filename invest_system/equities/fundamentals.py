@@ -8,7 +8,49 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Iterable, Optional
+
 import pandas as pd
+
+from ..data.sources import jquants as jq
+
+
+def _concat_parquets(d: Path) -> pd.DataFrame:
+    """dir 内の全Parquetを長形式で連結（空マーカー _empty はスキップ）。"""
+    frames = []
+    if d.exists():
+        for p in sorted(d.glob("*.parquet")):
+            df = pd.read_parquet(p)
+            if df.empty or "_empty" in df.columns:
+                continue
+            frames.append(df)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def load_fundamentals(codes: Optional[Iterable] = None, base: Optional[str] = None,
+                      subdir: str = "fins_summary",
+                      also_subdir: Optional[str] = "statements") -> pd.DataFrame:
+    """財務サマリーを長形式（行=開示）で読み込む。全件 by-date ミラー fins_summary/ を主とし、
+    旧 by-code キャッシュ statements/ も併合・重複除去する（DL途中でも欠落しない）。
+
+    行に DiscDate, Code と各財務フィールド。空マーカーは除外。codes 指定で銘柄限定。
+    返り値は point_in_time にそのまま渡せる。全件DL後は fins_summary/ が完全な上位集合となり、
+    statements/ 由来は重複として落ちる。同一開示の重複は (Code, DiscDate, DiscNo) で除去。
+    """
+    root = Path(base) if base is not None else jq._CACHE
+    parts = [p for p in (_concat_parquets(root / s)
+                         for s in (subdir, also_subdir) if s) if not p.empty]
+    if not parts:
+        return pd.DataFrame()
+    df = pd.concat(parts, ignore_index=True)
+    keys = [k for k in ("Code", "DiscDate", "DiscNo") if k in df.columns]
+    if keys:
+        df = df.sort_values(keys).drop_duplicates(subset=keys, keep="last")
+    if codes is not None and "Code" in df.columns:
+        want = {str(c) for c in codes}
+        df = df[df["Code"].astype(str).isin(want)]
+    return df.reset_index(drop=True)
 
 
 def point_in_time(fund_long: pd.DataFrame, rebal_dates, fields: list[str],
@@ -46,3 +88,17 @@ def point_in_time(fund_long: pd.DataFrame, rebal_dates, fields: list[str],
                 acc[f][str(code)] = pd.to_numeric(m[f], errors="coerce").reindex(rebal)
     return {f: (pd.DataFrame(acc[f], index=rebal) if acc[f]
                else pd.DataFrame(index=rebal, dtype="float64")) for f in present}
+
+
+def fundamentals_panel(rebal_dates, fields: list[str], codes: Optional[Iterable] = None,
+                       lag_days: int = 1, base: Optional[str] = None
+                       ) -> dict[str, pd.DataFrame]:
+    """全件 by-date ミラーから財務 as-of パネルを1呼び出しで組み立てる（案A推奨経路）。
+
+    load_fundamentals（fins_summary/ ＋ 旧 statements/ を併合・重複除去）→ point_in_time
+    （DiscDate≤t−lag の最新開示のみ採用）を合成。codes=None なら全ユニバース。返り値は
+    {field: DataFrame(index=rebal, columns=code)}。銘柄ごとにネットワークを叩かないため、
+    全銘柄パネルでも高速・先読みなし。
+    """
+    return point_in_time(load_fundamentals(codes=codes, base=base), rebal_dates,
+                         fields, lag_days=lag_days)

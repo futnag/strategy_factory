@@ -220,24 +220,35 @@ MVP（PITデータビュー→戦略IF→エンジン→判定器）を構築（
 
 ---
 
-## 5. データ資産（ローカル・gitignore・約260MB）
+## 5. データ資産（ローカル・gitignore・全件ミラーで約1GB級）
+
+Standard 提供の全データセットを**全営業日 by-date ミラー**（2016-06〜現在）として保持し、差分更新で
+最新化する。市場データは J-Quants 利用規約によりコミットせず `data/`（gitignore）にのみ置く。
+公式プラン表との照合で **Standard で取得可能なデータはすべて網羅**（下記の Premium 限定を除く）。
 
 | 分類 | 内容 | 取得軸 |
 |---|---|---|
-| 上場銘柄マスタ | `CoName/S33(業種)/Mkt(市場)` 等 4,400社超 | 1スナップ |
-| 日次株価 | 月末スナップ＋銘柄別日次（AdjC=分割調整, Va=売買代金） | by-date / by-code |
-| 財務サマリー | 決算短信（売上/利益/EPS/BPS/純資産＋**予想FEPS**＋開示日DiscDate, 約550銘柄） | by-code |
-| 信用取引週末残高 | **全銘柄・週次**（買残LongVol/売残ShrtVol、制度/一般内訳）205万行 | 金曜date |
-| 空売り残高報告 | 大口空売り（対発行株比率）136万行 | calc_date |
-| 日次公表信用 | 規制銘柄の日次信用 44万行 | date |
-| 業種別空売り比率 | 33業種・全期間 7.9万行 | s33 |
-| 株価指数 | 79種（TOPIX=0000 等）18.4万行 | by-code |
+| 上場銘柄マスタ | `CoName/S33(業種)/Mkt(市場)` 等 4,443社 | 1スナップ |
+| 日次株価四本値 | **全営業日・全銘柄**（AdjC=分割調整, Va=売買代金, UL/LL=制限値幅） | by-date 全件ミラー |
+| 財務サマリー | 決算短信（売上/利益/EPS/BPS/純資産＋**予想FEPS**＋**配当 DivFY/DivAnn/配当性向**＋開示日DiscDate） | **by-date 全件ミラー**（`fins_summary/`） |
+| 日経225オプション | 全営業日・全契約（**IV**/Theo理論値/Settle清算値/OI建玉/UnderPx原資産/Strike）約2,600日 | by-date |
+| 信用取引週末残高 | **全銘柄・週次**（買残LongVol/売残ShrtVol、制度/一般内訳）約205万行 | 金曜date |
+| 空売り残高報告 | 大口空売り（対発行株比率）約136万行 | calc_date |
+| 日次公表信用 | 規制銘柄の日次信用 約44万行 | date |
+| 業種別空売り比率 | 33業種・全期間 約7.9万行 | s33 |
+| 株価指数 | 79種（**TOPIX=0000**＝専用 `/indices/bars/daily/topix` と実値一致確認済）約18万行 | by-code |
 | 投資部門別フロー | 週次・市場区分別の13主体（海外/個人/投信…）売買 | from/to |
 
-- **差分更新**（`data/updater.py` ＋ `examples/update_data.py`）：既存キャッシュ＋manifestから
-  取得済み日を復元し、**欠損日のみ取得**。`update`一発で by-date系＋range-refresh系（指数・
-  フロー）を最新化。冪等・再開可能。
-- **未取得（要 Premium）**: 売買内訳（日次需給）・財務諸表詳細(BS/PL/CF)・先物。
+- **ファンダ panel 組立**（`equities/fundamentals.py`）：`load_fundamentals()` が by-date ミラー
+  `fins_summary/`（＋旧 by-code `statements/`）を併合・重複除去して長形式で返し、
+  `fundamentals_panel()` が `point_in_time`（DiscDate≤t−lag のみ採用）で**全ユニバースの as-of
+  パネル**を先読みなし・銘柄別ネットワーク不要で1呼び出し組立。
+- **差分更新／一括取得**：`data/updater.py`（`update`一発で by-date＋range-refresh を最新化、冪等・
+  再開可能）。大規模初回バックフィルは **`examples/download_jquants.py`**（手元ターミナルで直接実行＝
+  Claude を介さず、進捗表示・中断再開可）。
+- **未取得（要 Premium）**: 売買内訳（日次需給）・財務諸表詳細(BS/PL/CF, `/fins/details`)・先物・
+  **225以外のオプション**・配当金詳細(`/fins/dividend`)・前場四本値。
+  ※ **基本の配当・予想配当・配当性向は `/fins/summary` に内包**＝Standard でも配当利回り系は構築可。
   **外部要**: ニュース本文（NLP）。
 - **重要事実**: 全銘柄の信用残高は「週次」のみ公表（日次は規制銘柄のみ＝JPX開示ルール）。
   決算発表予定 `/equities/earnings-calendar` は**前向きスナップショットのみ**で履歴は無く、

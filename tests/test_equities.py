@@ -21,8 +21,10 @@ from invest_system.equities.fundamentals import (
 from invest_system.equities.factors import (
     cross_sectional_residualize,
     cross_sectional_zscore,
+    low_volatility,
     market_cap,
     sector_neutralize,
+    value_quality_size_factors,
 )
 from invest_system.equities.backtest import long_short_returns
 
@@ -203,6 +205,30 @@ def test_residualize_keeps_independent_part():
     resid = cross_sectional_residualize(target, [control]).loc[idx[0]].to_numpy()
     assert resid.std() > 0                                  # 独立成分は残る
     assert abs(np.corrcoef(resid, control.iloc[0].to_numpy())[0, 1]) < 1e-6  # 直交
+
+
+def test_low_volatility_sign_and_no_lookahead():
+    idx = pd.date_range("2024-01-31", periods=14, freq="ME")
+    smooth = pd.Series(100.0 * (1.01 ** np.arange(14)), index=idx)          # 低ボラ
+    zigzag = pd.Series(100.0 * (1 + 0.1 * ((-1.0) ** np.arange(14))), index=idx)  # 高ボラ
+    lv = low_volatility(pd.DataFrame({"A": smooth, "B": zigzag}), window=6)
+    assert lv.iloc[:2].isna().all().all()                  # 過去不足は NaN（先読みなし）
+    assert lv.iloc[-1]["A"] > lv.iloc[-1]["B"]             # 低ボラ A が大（ロング側）
+
+
+def test_accruals_quality_sign_in_bundle():
+    idx = pd.to_datetime(["2024-03-31"])
+
+    def one(a, b):
+        return pd.DataFrame({"100": [a], "200": [b]}, index=idx)
+
+    raw = one(1000.0, 1000.0)
+    pit = {"CFO": one(50.0, 10.0), "NP": one(10.0, 50.0), "TA": one(100.0, 100.0),
+           "ShOutFY": one(1.0, 1.0), "TrShFY": one(0.0, 0.0), "Eq": one(1.0, 1.0)}
+    out = value_quality_size_factors(pit, raw)
+    # accruals = (CFO − NP)/TA：100→(50−10)/100=+0.4（高品質）, 200→−0.4（低品質）
+    assert out["accruals"].loc[idx[0], "100"] == pytest.approx(0.4)
+    assert out["accruals"].loc[idx[0], "200"] == pytest.approx(-0.4)
 
 
 def test_long_short_returns_sign_and_costs():

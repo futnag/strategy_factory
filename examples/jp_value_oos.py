@@ -31,7 +31,7 @@ from invest_system.equities.universe import (  # noqa: E402
 from invest_system.equities.panel import (  # noqa: E402
     assemble_panel, fetch_month_end_snapshots, forward_returns,
 )
-from invest_system.equities.fundamentals import point_in_time  # noqa: E402
+from invest_system.equities.fundamentals import load_fundamentals, point_in_time  # noqa: E402
 from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors,
 )
@@ -52,15 +52,8 @@ VALUE_FIELDS = ["ShOutFY", "TrShFY", "Eq", "FEPS", "CFO", "FSales"]
 
 
 def fetch_fundamentals(codes):
-    fr = []
-    for c in codes:
-        try:
-            st = jq.fetch_statements(code=c)
-            if not st.empty:
-                fr.append(st)
-        except Exception:  # noqa: BLE001
-            pass
-    return pd.concat(fr, ignore_index=True) if fr else pd.DataFrame()
+    # fins_summary/ 全件 by-date ミラーから長形式取得（旧 by-code statements/ も併合・重複除去）
+    return load_fundamentals(codes)
 
 
 def _nanmean_frames(frames):

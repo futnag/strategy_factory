@@ -52,6 +52,7 @@ def value_quality_size_factors(pit: dict[str, pd.DataFrame], raw_price: pd.DataF
     out["roa"] = f("FNP") / ta                              # 予想ROA
     out["op_margin"] = f("FOP") / fsales                    # 予想営業利益率
     out["equity_ratio"] = f("EqAR")                         # 自己資本比率
+    out["accruals"] = (f("CFO") - f("NP")) / ta             # 低アクルーアル(CFO>NP実利益)=高品質
     # --- サイズ（小型ほど大きい値＝小型プレミアム方向）---
     out["size"] = -np.log(mcap.where(mcap > 0))
     # --- モメンタム（12-1, 調整後価格）---
@@ -61,6 +62,18 @@ def value_quality_size_factors(pit: dict[str, pd.DataFrame], raw_price: pd.DataF
     # ユニバース列に整列
     return {k: v.reindex(index=raw_price.index, columns=raw_price.columns)
             for k, v in out.items()}
+
+
+def low_volatility(price: pd.DataFrame, window: int = 12) -> pd.DataFrame:
+    """低ボラティリティ・ファクター：各時点で過去 window 期間のリターン実現ボラに負号。
+
+    低ボラ・アノマリー（高ボラ株が長期にリスク調整後アンダーパフォーム）。price は任意頻度
+    の調整済価格パネル（月末パネルなら window=12 で約1年ボラ）。値が大きい＝低ボラ＝ロング側。
+    rolling は過去のみ参照するため各時点 t のボラは t までのリターンで算出＝先読みなし。
+    """
+    ret = price.pct_change()
+    vol = ret.rolling(window, min_periods=max(2, window // 2)).std()
+    return -vol
 
 
 def cross_sectional_zscore(df: pd.DataFrame, winsor: float = 3.0) -> pd.DataFrame:

@@ -254,6 +254,12 @@ Standard 提供の全データセットを**全営業日 by-date ミラー**（2
   **11.2s→0.24s ≈47倍**、未生成なら Raw にフォールバック）。`updater.update(materialize=True)` で
   Raw 更新→Silver 整形まで一気通貫。補助に partitioned-long（year パーティション・DuckDB/SQL用）。
   3層＝**Raw(不変)/Processed(派生)/Features**。市場データは `data/`（gitignore）。
+- **Features (Gold) 層**：Silver から派生特徴を再計算 materialize（`data/feature_store.py`：
+  `build_price_features`／`build_regime`／`materialize_features`／`load_feature`）。価格特徴
+  （returns/log_returns/vol_20/momentum_12_1/reversal_5・wide・float32）＋市場レジーム（等加重
+  マーケット実現ボラの**拡張窓 percentile 三分位**＋trailing トレンド）。**すべて adj_close から因果
+  計算＝先読みなし**（f[t] は ≤t のみ）。分数階差分は研究依存(d)・高コストのため bulk 非材化＝
+  `features/frac_diff.py` をオンデマンド適用。実材化 2,439日×5,367銘柄×5特徴＋regime を 7.4s。
 - **未取得（要 Premium）**: 売買内訳（日次需給）・財務諸表詳細(BS/PL/CF, `/fins/details`)・先物・
   **225以外のオプション**・配当金詳細(`/fins/dividend`)・前場四本値。
   ※ **基本の配当・予想配当・配当性向は `/fins/summary` に内包**＝Standard でも配当利回り系は構築可。

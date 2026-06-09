@@ -96,11 +96,12 @@ class DataUpdater:
         return missing_dates(cands, fetched)
 
     def update(self, names: Optional[list[str]] = None, until=None,
-               verbose: bool = True) -> dict:
+               verbose: bool = True, materialize: bool = False) -> dict:
         """maintained データセット（または指定）を until まで最新化。
 
         by-date 系（欠損日のみ取得）と range-refresh 系（指数・投資部門別を全体再取得）の
-        両方を対象にする。
+        両方を対象にする。materialize=True で Raw 更新後に Silver(wide) を増分 materialize＋
+        調整再構築する（store.materialize_all）。
         """
         until = pd.Timestamp(until) if until else pd.Timestamp.today().normalize()
         until_s = until.strftime("%Y-%m-%d")
@@ -137,4 +138,10 @@ class DataUpdater:
                 report[name] = {"error": str(e)[:80]}
                 if verbose:
                     print(f"  [warn] {name}: {str(e)[:70]}")
+        if materialize:                      # Raw 更新後に Silver(wide) を増分整形
+            from .store import materialize_all
+            rep = materialize_all(base=str(self.base.parent), incremental=True)
+            report["_materialize"] = rep
+            if verbose:
+                print(f"  materialize: {rep['wide']}")
         return report

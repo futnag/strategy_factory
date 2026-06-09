@@ -87,10 +87,19 @@ def load_daily_panel(field: str = "AdjC", codes: Optional[Iterable] = None,
                      subdir: str = "daily") -> pd.DataFrame:
     """by-date 日次ミラー（daily/）から wide パネル（index=日付, col=Code, 値=field）を組立。
 
-    柱D（ペア/平均回帰）は日次価格パネルを要するため、全件 by-date Parquet を連結→ピボット
-    する（load_fundamentals と同じミラー結合パターン）。各日の実値のみ＝先読みなし、ネット
-    ワーク不要（キャッシュ参照のみ）。field 既定は分割調整後終値 AdjC。codes/start/end で限定。
+    既定（base=None）では **Silver 層（processed/equities/wide）を優先**して O(1) で読む
+    （`store.materialize_*` 生成済みなら高速）。未生成なら Raw by-date を連結→ピボットへ
+    フォールバック（後方互換）。各日の実値のみ＝先読みなし・ネット不要。field 既定は調整後
+    終値 AdjC（"AdjC"/"C"/"Va" 等の別名は Silver 側で解決）。codes/start/end で限定。
     """
+    if base is None:                                  # Silver 高速パス（既定 data root）
+        from .store import load_wide
+        wide = load_wide(field, start=start, end=end, base=str(jq._CACHE.parent))
+        if not wide.empty:
+            if codes is not None:
+                want = {str(c) for c in codes}
+                wide = wide.reindex(columns=[c for c in wide.columns if c in want])
+            return wide
     root = Path(base) if base is not None else jq._CACHE
     d = root / subdir
     frames = []

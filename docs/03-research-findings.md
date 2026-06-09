@@ -246,6 +246,14 @@ Standard 提供の全データセットを**全営業日 by-date ミラー**（2
 - **差分更新／一括取得**：`data/updater.py`（`update`一発で by-date＋range-refresh を最新化、冪等・
   再開可能）。大規模初回バックフィルは **`examples/download_jquants.py`**（手元ターミナルで直接実行＝
   Claude を介さず、進捗表示・中断再開可）。
+- **Processed (Silver) 層**：Raw(by-date) を分析最適化の **フィールド別 wide パネル**（index=Date,
+  col=Code, `processed/equities/wide/<field>.parquet`）に materialize（`data/store.py`：`materialize_wide`／
+  `rebuild_adjusted`／`load_wide`／`materialize_long`／`health_check`）。**生(無調整)は純 append・
+  調整後(adj_*)は派生**（分割で過去が back-adjust されるため累積係数で再構築。実データの分割銘柄で
+  J-Quants の AdjC と一致を確認）。`load_daily_panel(base=None)` は Silver を優先読み（実測
+  **11.2s→0.24s ≈47倍**、未生成なら Raw にフォールバック）。`updater.update(materialize=True)` で
+  Raw 更新→Silver 整形まで一気通貫。補助に partitioned-long（year パーティション・DuckDB/SQL用）。
+  3層＝**Raw(不変)/Processed(派生)/Features**。市場データは `data/`（gitignore）。
 - **未取得（要 Premium）**: 売買内訳（日次需給）・財務諸表詳細(BS/PL/CF, `/fins/details`)・先物・
   **225以外のオプション**・配当金詳細(`/fins/dividend`)・前場四本値。
   ※ **基本の配当・予想配当・配当性向は `/fins/summary` に内包**＝Standard でも配当利回り系は構築可。

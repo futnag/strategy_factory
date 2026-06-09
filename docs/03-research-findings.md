@@ -253,6 +253,14 @@ Standard 提供の全データセットを**全営業日 by-date ミラー**（2
 - **重要事実**: 全銘柄の信用残高は「週次」のみ公表（日次は規制銘柄のみ＝JPX開示ルール）。
   決算発表予定 `/equities/earnings-calendar` は**前向きスナップショットのみ**で履歴は無く、
   バックテストの発表日は **DiscDate（実開示日）から復元**する。
+- **外部クロスアセット・マクロ（マクロ特徴量用・J-Quantsとは別系統）**：価格＝`data/investers/`
+  （investing.com 由来 OHLCV・23系列・**2010〜2026**：指数/指数先物/FX/商品金属）、マクロ＝
+  `data/supplemental/macro_extended.parquet`（FRED/yfinance：日米金利・政策金利・CPI・VIX・GBPJPY）。
+  正準ローダ `invest_system/data/external.py` が英語キーの wide で返し（`load_external_prices`／
+  `load_macro`／`list_external`）、`asof_align`（≤t−lag の as-of・ffill・先読みなし）で JP リバランス日に
+  整合して `AsOfView` 特徴量にできる。source-of-truth＝価格は investers・supplemental は重複しないマクロ
+  のみ（VIX 重複は正規化）。市場データは ToS によりコミットせず `data/`（gitignore）。取得スクリプト
+  （`fetch_*`／`clean_investing_csv`／`merge_macro_data*`）の .env 化・パッケージ化は次段（未統合）。
 
 ---
 

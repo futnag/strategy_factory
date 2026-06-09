@@ -7,9 +7,10 @@
 PIT：形成窓は取引窓に先行（先読みなし）。建玉は coint_gate=True で各 t の直近窓を再検定し
 共和分の崩壊に追随。執行は execution_lag=1（z は当日終値で算出→翌日執行＝同足先読み排除）。
 
-取得済み日足ミラー（data/jquants/daily/）で動作・API 不要。環境変数で規模調整可：
+取得済み日足ミラー（data/jquants/daily/）で動作・API 不要。環境変数で規模/変種調整可：
   J_MR_M(業種内上位数) J_MR_FORM_DAYS(形成窓) J_MR_LOOKBACK J_MR_ENTRY J_MR_CADF_P
-  J_MR_START(AdjC開始日) J_MR_REGISTRY(試行台帳パス・未指定で永続)
+  J_MR_METHOD(rolling_ols/kalman) J_MR_MAX_HL(半減期上限日) J_MR_COINT_GATE(0で無効)
+  J_MR_SCOPE(試行scope名) J_MR_START(AdjC開始日) J_MR_REGISTRY(台帳パス・未指定で永続)
 実行: $env:J_QUANTS_MIN_INTERVAL="0.7"; .venv\\Scripts\\python.exe examples\\research_meanrev_pairs.py
 """
 from __future__ import annotations
@@ -45,10 +46,16 @@ ENTRY = float(get_env("J_MR_ENTRY", "2.0") or "2.0")
 CADF_P = float(get_env("J_MR_CADF_P", "0.05") or "0.05")
 START = get_env("J_MR_START", None)                     # AdjC開始日（未指定=全期間）
 REG_PATH = get_env("J_MR_REGISTRY", None)               # 未指定=永続レジストリ
+METHOD = get_env("J_MR_METHOD", "rolling_ols") or "rolling_ols"  # rolling_ols / kalman
+_mhl = get_env("J_MR_MAX_HL", None)
+MAX_HL = float(_mhl) if _mhl else None                  # 半減期上限(日)・任意ゲート
+COINT_GATE = (get_env("J_MR_COINT_GATE", "1") or "1") != "0"     # 各tのCADF再検定
+SCOPE = get_env("J_MR_SCOPE", "meanrev_pairs") or "meanrev_pairs"
 
 
 def main() -> int:
-    print(f"=== 共和分ペア平均回帰（柱D）  業種内上位{M}・形成窓{FORM_DAYS}日 ===")
+    print(f"=== 共和分ペア平均回帰（柱D）  上位{M}・形成窓{FORM_DAYS}日・{METHOD}"
+          f"・gate={COINT_GATE}・scope={SCOPE} ===")
     px = load_daily_panel(field="AdjC", start=START)
     if px.empty:
         print("ERROR: 日足ミラー(data/jquants/daily/)が空。download_jquants.py を先に実行。")
@@ -93,7 +100,8 @@ def main() -> int:
         return 0
 
     strategies = [CointegratedPairs(a, b, lookback=LOOKBACK, entry=ENTRY,
-                                    coint_gate=True, cadf_max_p=CADF_P)
+                                    method=METHOD, coint_gate=COINT_GATE,
+                                    cadf_max_p=CADF_P, max_half_life=MAX_HL)
                   for a, b in tradeable]
     view = AsOfView({"close": px})
     adv = adv_full.reindex(index=trade_dates)
@@ -101,7 +109,7 @@ def main() -> int:
     reg_cm = TrialRegistry(REG_PATH) if REG_PATH else default_registry()
     with reg_cm as reg:
         v = judge_grid(
-            strategies, view, scope="meanrev_pairs",
+            strategies, view, scope=SCOPE,
             hypothesis="同業種・共和分ペアの一時乖離は平均回帰する（相対価値）",
             economic_rationale=("同業種は共通ファンダで結ばれ、在庫/流動性ショックによる"
                                 "一時的な価格乖離が回帰する。共和分が崩れた局面は建玉しない。"),

@@ -183,3 +183,46 @@ class LinearMeanReversion(Strategy):
         if w == 0:
             return pd.Series(dtype="float64")
         return pd.Series({self.code: w}, dtype="float64")
+
+
+class RegimeGated(Strategy):
+    """任意 Strategy をレジーム系列でゲート/サイズ調整するデコレータ（柱D・PIT）。
+
+    regime は index=日付・値=レジームラベル（0/1/2 等）の **PIT 系列**（timeseries.regime
+    の拡張窓三分位で算出済み）。各 t で base のウェイトを得てから、≤t の最新レジームで：
+    - allowed（ラベル集合）指定時：レジーム∈allowed の時だけ建玉（ハードゲート）、否は flat。
+    - sizing（{ラベル:係数}）指定時：ウェイト×係数（連続サイズ調整・allowed より優先）。
+    レジーム未確定（≤t に値なし/NaN）は保守的に flat。base は無改修で覆える（CompositeStrategy
+    と同じラッパ idiom）。regime[t] は close[t] 由来＝z[t] と同 as-of、執行は execution_lag で
+    翌足＝同足の先読みなし。params に regime タグを載せ、判定器は base と**別試行**として K 計上
+    （＝レジームを足すだけで自動的に得しない・KB §11.7 / DP13 の規律）。
+    """
+
+    def __init__(self, base: Strategy, regime: pd.Series, allowed=None,
+                 sizing=None, name: str | None = None):
+        if allowed is None and sizing is None:
+            raise ValueError("allowed か sizing のいずれかを指定してください。")
+        self.base = base
+        self.regime = regime.sort_index()
+        self.allowed = {float(x) for x in allowed} if allowed is not None else None
+        self.sizing = ({float(k): float(v) for k, v in sizing.items()}
+                       if sizing is not None else None)
+        tag = (f"allow={sorted(self.allowed)}" if self.allowed is not None
+               else f"size={self.sizing}")
+        self.name = name or f"{base.name}|regime({tag})"
+        self.params = {**base.params, "regime": tag}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        w = self.base.target_weights(asof)
+        if w.empty:
+            return w
+        hist = self.regime.loc[:asof.asof]            # ≤t の最新レジーム＝先読み無
+        if hist.empty or pd.isna(hist.iloc[-1]):
+            return pd.Series(dtype="float64")         # レジーム未確定＝建てない
+        r = float(hist.iloc[-1])
+        if self.sizing is not None:
+            scale = self.sizing.get(r, 0.0)
+            return w * scale if scale != 0.0 else pd.Series(dtype="float64")
+        if r not in self.allowed:                     # ハードゲート（allowed 外は flat）
+            return pd.Series(dtype="float64")
+        return w

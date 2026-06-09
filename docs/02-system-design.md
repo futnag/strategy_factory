@@ -389,7 +389,8 @@ invest-system/
 ├─ timeseries/          # 平均回帰・共和分（柱D, KB §11）
 │   ├─ mean_reversion.py  # 半減期(OU)/Hurst/分散比/ADF
 │   ├─ cointegration.py   # CADF/Johansen/ヘッジ比(OLS/TLS)
-│   └─ kalman.py          # オンライン動的ヘッジ比・平均
+│   ├─ kalman.py          # オンライン動的ヘッジ比・平均
+│   └─ regime.py          # 市場レジーム（ER/ボラ・拡張窓三分位・PIT）
 ├─ labeling/
 │   ├─ triple_barrier.py
 │   └─ meta_labeling.py

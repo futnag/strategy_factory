@@ -93,7 +93,7 @@ def load_daily_panel(field: str = "AdjC", codes: Optional[Iterable] = None,
     終値 AdjC（"AdjC"/"C"/"Va" 等の別名は Silver 側で解決）。codes/start/end で限定。
     """
     if base is None:                                  # Silver 高速パス（既定 data root）
-        from .store import load_wide
+        from ..data.store import load_wide
         wide = load_wide(field, start=start, end=end, base=str(jq._CACHE.parent))
         if not wide.empty:
             if codes is not None:

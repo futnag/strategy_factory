@@ -21,6 +21,13 @@ from .mean_reversion import (
     ou_params,
     variance_ratio,
 )
+from .regime import (
+    efficiency_ratio,
+    equal_weight_market,
+    expanding_tertile,
+    trend_regime,
+    vol_regime,
+)
 
 __all__ = [
     "adf_pvalue",
@@ -35,4 +42,9 @@ __all__ = [
     "johansen",
     "spread_series",
     "KalmanHedge",
+    "efficiency_ratio",
+    "equal_weight_market",
+    "expanding_tertile",
+    "trend_regime",
+    "vol_regime",
 ]

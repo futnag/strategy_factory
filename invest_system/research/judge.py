@@ -52,6 +52,26 @@ class GridVerdict:
     series: dict = field(default_factory=dict)   # name -> ネットリターン系列
 
 
+def regime_breakdown(returns: pd.Series, regime: pd.Series,
+                     ann: float = 252.0) -> pd.DataFrame:
+    """戦略リターンをレジーム別に年率Sharpe・日数・平均に分解（ゲート判断の診断）。
+
+    returns（決定日 index のネット系列）を ≤t の regime ラベルで groupby。**ゲートする前に**
+    これを ungated 戦略で見る：MR の P&L が有利レジームに集中し不利レジームで負（Sharpe<0）
+    なら、ゲートでサブ期間安定性が改善する見込み。分離が無ければゲートは無意味。regime は
+    returns.index に reindex（ffill＝直近の確定レジーム）して整合。NaN ラベルは除外。
+    """
+    r = returns.dropna()
+    lab = regime.reindex(r.index).ffill()
+    rows = []
+    for g, seg in r.groupby(lab):
+        sd = seg.std(ddof=1)
+        sh = (float(seg.mean() / sd * np.sqrt(ann))
+              if len(seg) >= 2 and sd > 0 else float("nan"))
+        rows.append((float(g), int(len(seg)), float(seg.mean()), sh))
+    return pd.DataFrame(rows, columns=["regime", "n", "mean", "sharpe_ann"])
+
+
 def _maxdd(r: pd.Series) -> float:
     cum = (1.0 + r).cumprod()
     return float((cum / cum.cummax() - 1.0).min())

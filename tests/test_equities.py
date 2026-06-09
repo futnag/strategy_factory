@@ -176,6 +176,21 @@ def test_load_daily_panel_wide_and_skips_empty(tmp_path):
     assert list(va.columns) == ["7203"] and va.loc["2024-05-10", "7203"] == 1e9
 
 
+def test_load_daily_panel_silver_fastpath(tmp_path, monkeypatch):
+    """base=None の既定パスが Silver(processed/equities/wide) を別名解決で読む（回帰）。"""
+    from invest_system.data.sources import jquants as jq
+    wd = tmp_path / "processed" / "equities" / "wide"; wd.mkdir(parents=True)
+    pd.DataFrame({"7203": [100.0, 110.0], "6758": [200.0, 190.0]},
+                 index=pd.DatetimeIndex(["2024-05-10", "2024-05-13"], name="Date")
+                 ).to_parquet(wd / "adj_close.parquet")
+    monkeypatch.setattr(jq, "_CACHE", tmp_path / "jquants")     # parent=tmp を data root に
+    panel = load_daily_panel(field="AdjC")                      # base=None＝Silver 高速パス
+    assert sorted(panel.columns) == ["6758", "7203"]
+    assert panel.loc["2024-05-13", "7203"] == 110.0
+    sub = load_daily_panel(field="AdjC", codes=["7203"])       # codes 絞り込み
+    assert list(sub.columns) == ["7203"]
+
+
 # --- factors ----------------------------------------------------------------
 def test_market_cap():
     price = pd.DataFrame({"A": [10.0]}, index=[pd.Timestamp("2024-01-31")])

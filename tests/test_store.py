@@ -6,6 +6,7 @@ from invest_system.data.store import (
     health_check,
     load_wide,
     materialize_all,
+    materialize_long,
     materialize_wide,
     rebuild_adjusted,
 )
@@ -78,3 +79,15 @@ def test_health_check_alignment(tmp_path):
     close_row = hc[hc["field"] == "close"].iloc[0]
     assert close_row["days"] == 2 and close_row["codes"] == 2
     assert bool(hc["aligned_to_close"].all())              # 全フィールド日付整合
+
+
+def test_materialize_long_partitioned(tmp_path):
+    raw = tmp_path / "jquants" / "daily"; raw.mkdir(parents=True)
+    _raw_day(raw, "2023-12-29", ["7203"], [100.])
+    _raw_day(raw, "2024-01-04", ["7203", "6758"], [110., 50.])
+    rep = materialize_long(base=str(tmp_path))
+    assert rep["rows"] == 3 and rep["years"] == 2
+    out = tmp_path / "processed" / "equities" / "long"
+    assert (out / "year=2023").exists() and (out / "year=2024").exists()  # Hive分割
+    df24 = pd.read_parquet(out / "year=2024")
+    assert set(df24["Code"]) == {"7203", "6758"} and len(df24) == 2

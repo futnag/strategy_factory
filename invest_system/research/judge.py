@@ -88,11 +88,13 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
                economic_rationale: str, registry: TrialRegistry,
                costs_bps: float = 15.0, price_field: str = "close",
                rebalance=None, dsr_threshold: float = 0.95,
-               execution_lag: int = 0, adv=None, participation: float = 0.1
-               ) -> GridVerdict:
+               execution_lag: int = 0, adv=None, participation: float = 0.1,
+               extra_trials: int = 0) -> GridVerdict:
     """戦略群（格子）を裁く。各点を事前登録＋記録し、scope の K でデフレート。
 
     execution_lag/adv/participation はバックテストの現実性（執行遅延・容量）に渡す。
+    extra_trials: 探索しただけで建玉に至らない候補（CADF 等で事前棄却したペア）の数。
+      K に算入し DSR をデフレートする（ペア探索の SBuMT 制御・DP13・KB §11.7）。
     """
     staged = []   # (strategy, result, returns, uuid)
     for s in strategies:
@@ -108,6 +110,10 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
                                  sharpe=sr, n_obs=n, skew=sk, kurt=ku,
                                  hypothesis=hypothesis, rationale=economic_rationale)
         staged.append((s, res, r, uid))
+
+    if extra_trials:                  # 探索しただけの候補も K に算入（DP13・KB §11.7）
+        registry.log_scan_trials(scope=scope, count=int(extra_trials),
+                                 hypothesis=hypothesis, rationale=economic_rationale)
 
     results = []
     for s, res, r, uid in staged:

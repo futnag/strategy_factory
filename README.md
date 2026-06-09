@@ -1,11 +1,11 @@
 # strategy_factory (invest-system)
 
-López de Prado の金融機械学習フレームワークに基づく投資システム。
+López de Prado の金融機械学習フレームワーク（検証の厳格さ・過学習対策）を土台に、Ernest Chan の平均回帰／統計的裁定（柱D）を戦略仮説面で補完する**ハイブリッド投資システム**。
 **Linux / macOS / Windows で動作**（純 Python：numpy / pandas / scipy / scikit-learn /
 statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は LF 固定）。
 
 設計ドキュメント：
-- [`docs/01-knowledge-base.md`](docs/01-knowledge-base.md) — 統合ナレッジベース（原理リファレンス）
+- [`docs/01-knowledge-base.md`](docs/01-knowledge-base.md) — 統合ナレッジベース（原理リファレンス。§11 に Ernie Chan 平均回帰／統計的裁定 補完）
 - [`docs/02-system-design.md`](docs/02-system-design.md) — システム設計書 v0.2
 - [`docs/03-research-findings.md`](docs/03-research-findings.md) — 研究知見・検証ファクトリ・データ資産（最新・最重要）
 
@@ -15,11 +15,16 @@ statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は
 |----|-----------|------|----|
 | L1-L2 | `invest_system/data/` | bitbank 取込（公開API・キー不要）、ドル/インバランスバー | §3.2 |
 | L3-L4 | `invest_system/features/` | 分数階差分（メモリ保持定常化）、因果フィルタ（コライダー除去） | §3.1, §7 |
+| L3-L4 | `invest_system/timeseries/` | 平均回帰・共和分（半減期/Hurst/CADF/Johansen/Kalman）＝柱D | §11 |
 | L5/L7 | `invest_system/labeling/` | トリプルバリア、メタラベリング＋ベットサイジング | §4 |
 | L6 | `invest_system/sampling/` | サンプル独自性（非IID重み付け）、逐次ブートストラップ | §4.3 |
 | L8 | `invest_system/validation/` | パージング/エンバーゴ、CPCV、DSR、試行レジストリ | §5 |
 | — | `invest_system/backtest/` | purged CPCV バックテスト（Sharpe を分布で評価） | §5.2 |
 | L9 | `invest_system/portfolio/` | ノイズ除去(RMT)、最小分散、HRP、NCO | §6 |
+
+> **柱D（時系列・統計的裁定／Ernie Chan 補完）＝実装済み**：`invest_system/timeseries/` ＋
+> `research/strategies_meanrev.py` の `CointegratedPairs`/`JohansenBasket`/`LinearMeanReversion`、
+> 検証 `examples/research_meanrev_pairs.py`。原理 [`docs/01`§11]、設計 [`docs/02`§5.2・DP12-14]、検証 [`docs/03`§6.6]。
 
 ## セットアップ
 
@@ -97,6 +102,9 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
 - 全ユニバースの財務 as-of は `equities/fundamentals.py` の `fundamentals_panel()`／`load_fundamentals()`
   （全件ミラーを先読みなしで組立）。ファクターは `equities/factors.py`（value/quality/size/momentum/
   配当利回り/低ボラ/アクルーアル）。
+- **柱D（実装済み・Chan 補完）**：共和分ペアの平均回帰が第3の独立アルファ源。`timeseries/` ツールキット
+  ＋`CointegratedPairs` で、取得済み日足ミラー＋業種マスタから業種内ペアを CADF ゲート→全候補を試行計上
+  →DSR デフレート（`examples/research_meanrev_pairs.py`・[`docs/03`§6.6]）。
 
 ## コマンド対応表（PowerShell ↔ bash）
 

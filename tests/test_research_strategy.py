@@ -8,6 +8,9 @@ from invest_system.research.strategy import (
     CalendarStrategy, CompositeStrategy, CrossSectionalStrategy, EarningsRunup,
     GapReversal, PairsStrategy, SignalTimingStrategy,
 )
+from invest_system.research.strategies_meanrev import (
+    CointegratedPairs, JohansenBasket, LinearMeanReversion,
+)
 
 
 def _ohlc():
@@ -149,3 +152,88 @@ def test_composite_strategy_sums_weights():
     combo = CompositeStrategy([s1, s1], [0.5, 0.5])     # 同一戦略×2×0.5 = s1
     w = combo.target_weights(a)
     assert w["E"] == pytest.approx(1.0) and w["A"] == pytest.approx(-1.0)
+
+
+# --- 柱D: 時系列・統計的裁定（CointegratedPairs / Johansen / LinearMeanReversion） ---
+def _coint_close(n=130, beta=2.0, seed=0, bump=3.0, bump_at=-1):
+    """a≈beta·b の共和分ペア。bump_at で a を bump 押し上げ（割高→z>0）。"""
+    rng = np.random.default_rng(seed)
+    b = 100.0 + np.cumsum(rng.normal(0, 0.5, n))
+    a = beta * b + rng.normal(0, 1.0, n)
+    a[bump_at] = a[bump_at] + bump
+    idx = pd.date_range("2024-01-01", periods=n, freq="D")
+    return idx, pd.DataFrame({"A": a, "B": b}, index=idx)
+
+
+def test_coint_pairs_builds_beta_hedged_position():
+    idx, close = _coint_close()
+    s = CointegratedPairs("A", "B", lookback=120, entry=1.5)
+    w = s.target_weights(AsOfView({"close": close}).asof(idx[-1]))
+    assert w["A"] < 0 and w["B"] > 0              # 割高Aを売り・Bを買い
+    assert abs(w.abs().sum() - 1.0) < 1e-9        # グロス1
+    assert abs(w["A"] + 0.5) < 0.1                # a≈2b → ほぼ ±0.5（β加重）
+    assert abs(w.sum()) < 0.1                     # a≈β·b ＝ ほぼダラー中立
+
+
+def test_coint_pairs_gate_blocks_non_cointegrated():
+    rng = np.random.default_rng(1)
+    n = 130
+    a = 100 + np.cumsum(rng.normal(0, 1, n))      # 独立RW
+    b = 100 + np.cumsum(rng.normal(0, 1, n))      # 独立RW（共和分でない）
+    idx = pd.date_range("2024-01-01", periods=n, freq="D")
+    view = AsOfView({"close": pd.DataFrame({"A": a, "B": b}, index=idx)})
+    w = CointegratedPairs("A", "B", lookback=120,
+                          coint_gate=True).target_weights(view.asof(idx[-1]))
+    assert w.empty                                # ゲートで建玉せず
+
+
+def test_coint_pairs_no_lookahead():
+    idx, close = _coint_close(seed=3, bump=4.0, bump_at=-5)  # idx[-5] で建玉発生
+    s = CointegratedPairs("A", "B", lookback=120, entry=1.5)
+    w_t = s.target_weights(AsOfView({"close": close}).asof(idx[-5]))
+    future = close.copy()
+    future.iloc[-4:] *= 1.5                        # idx[-5] より後を改変
+    w_t2 = s.target_weights(AsOfView({"close": future}).asof(idx[-5]))
+    assert not w_t.empty                           # idx[-5] で建玉している
+    pd.testing.assert_series_equal(w_t, w_t2)      # ≤t は未来改変に不変
+
+
+def test_coint_pairs_kalman_method_also_trades():
+    idx, close = _coint_close(seed=2)
+    w = CointegratedPairs("A", "B", lookback=120, entry=1.5,
+                          method="kalman").target_weights(
+        AsOfView({"close": close}).asof(idx[-1]))
+    assert not w.empty and w["A"] < 0 < w["B"]
+
+
+def test_linear_mean_reversion_sign():
+    idx = pd.date_range("2024-01-01", periods=70, freq="D")
+    base = np.full(70, 100.0)
+    base[-1] = 110.0                               # 直近だけ割高 → z>0 → ショート
+    view = AsOfView({"close": pd.DataFrame({"X": base}, index=idx)})
+    w = LinearMeanReversion("X", lookback=60, scale=2.0).target_weights(
+        view.asof(idx[-1]))
+    assert w["X"] < 0                              # 割高→ショート（在庫∝ −z）
+
+
+def test_johansen_basket_gross_one_or_empty():
+    rng = np.random.default_rng(5)
+    n = 200
+    f = np.cumsum(rng.normal(0, 1, n))
+    close = pd.DataFrame({"A": f + rng.normal(0, .5, n) + 50,
+                          "B": f + rng.normal(0, .5, n) + 30,
+                          "C": f + rng.normal(0, .5, n) + 10},
+                         index=pd.date_range("2024-01-01", periods=n, freq="D"))
+    close.iloc[-1, 0] += 5.0                        # 末尾で乖離
+    w = JohansenBasket(["A", "B", "C"], lookback=150, entry=1.0).target_weights(
+        AsOfView({"close": close}).asof(close.index[-1]))
+    if not w.empty:
+        assert abs(w.abs().sum() - 1.0) < 1e-9 and set(w.index) <= {"A", "B", "C"}
+
+
+def test_johansen_basket_needs_two_codes():
+    idx = pd.date_range("2024-01-01", periods=200, freq="D")
+    close = pd.DataFrame({"A": np.arange(200.0)}, index=idx)
+    w = JohansenBasket(["A", "Z"], lookback=150).target_weights(
+        AsOfView({"close": close}).asof(idx[-1]))
+    assert w.empty                                 # 有効銘柄<2 → 空

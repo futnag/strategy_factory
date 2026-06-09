@@ -11,6 +11,9 @@ from .data_view import AsOf, AsOfView
 from .engine import BacktestResult, backtest
 from .judge import GridVerdict, StrategyVerdict, judge_grid
 from .report_html import to_html, write_html
+from .strategies_meanrev import (
+    CointegratedPairs, JohansenBasket, LinearMeanReversion,
+)
 from .strategy import (
     CalendarStrategy, CompositeStrategy, CrossSectionalStrategy, EarningsRunup,
     GapReversal, PairsStrategy, SignalTimingStrategy, Strategy,
@@ -27,6 +30,9 @@ __all__ = [
     "EarningsRunup",
     "CrossSectionalStrategy",
     "CompositeStrategy",
+    "CointegratedPairs",
+    "JohansenBasket",
+    "LinearMeanReversion",
     "backtest",
     "BacktestResult",
     "judge_grid",

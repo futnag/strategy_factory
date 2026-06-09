@@ -13,6 +13,7 @@ from invest_system.equities.universe import (
 from invest_system.equities.panel import (
     assemble_panel,
     forward_returns,
+    load_daily_panel,
     trailing_momentum,
 )
 from invest_system.equities.fundamentals import (
@@ -155,6 +156,24 @@ def test_load_fundamentals_unions_and_dedupes(tmp_path):
                                ["EPS"], base=str(tmp_path), lag_days=1)
     assert np.isnan(panel["EPS"]["6758"].loc["2024-05-10"])
     assert panel["EPS"]["6758"].loc["2024-05-13"] == 20.0
+
+
+def test_load_daily_panel_wide_and_skips_empty(tmp_path):
+    dd = tmp_path / "daily"; dd.mkdir()
+    pd.DataFrame({"Date": ["2024-05-10", "2024-05-10"], "Code": ["7203", "6758"],
+                  "AdjC": [100.0, 200.0], "Va": [1e9, 2e9]}
+                 ).to_parquet(dd / "20240510.parquet")
+    pd.DataFrame({"Date": ["2024-05-13", "2024-05-13"], "Code": ["7203", "6758"],
+                  "AdjC": [110.0, 190.0], "Va": [1.1e9, 1.9e9]}
+                 ).to_parquet(dd / "20240513.parquet")
+    pd.DataFrame({"_empty": pd.Series([], dtype="bool")}    # 祝日マーカーは無視
+                 ).to_parquet(dd / "20240511.parquet")
+    panel = load_daily_panel(field="AdjC", base=str(tmp_path))
+    assert list(panel.index) == [pd.Timestamp("2024-05-10"), pd.Timestamp("2024-05-13")]
+    assert sorted(panel.columns) == ["6758", "7203"]
+    assert panel.loc["2024-05-13", "7203"] == 110.0
+    va = load_daily_panel(field="Va", codes=["7203"], base=str(tmp_path))
+    assert list(va.columns) == ["7203"] and va.loc["2024-05-10", "7203"] == 1e9
 
 
 # --- factors ----------------------------------------------------------------

@@ -154,6 +154,36 @@ class TrialRegistry:
         self._conn.commit()
         return tid
 
+    def log_scan_trials(self, *, scope: str, count: int, hypothesis: str,
+                        rationale: str) -> int:
+        """探索しただけ（建玉に至らない）候補を K に算入する placeholder 試行。
+
+        ペア/バスケット探索の SBuMT（KB §11.7 / DP13）：CADF 等で事前棄却した候補も
+        「検定した試行」として K に数える。sharpe=NULL ゆえ V[SR] には寄与しない。指紋で
+        冪等（再実行で K を水増ししない）。返り値：今回新規に登録した件数。
+        """
+        if len(hypothesis.strip()) < _MIN_TEXT or len(rationale.strip()) < _MIN_TEXT:
+            raise ValueError("hypothesis/economic_rationale required")
+        added = 0
+        for i in range(int(count)):
+            fp = _fingerprint(scope, "__scan__", {"i": i})
+            row = self._conn.execute(
+                "SELECT uuid FROM trials WHERE scope=? AND fingerprint=?",
+                (scope, fp)).fetchone()
+            if row is not None:
+                continue
+            self._conn.execute(
+                "INSERT INTO trials (uuid, scope, strategy_id, hypothesis, "
+                "economic_rationale, params_json, status, sharpe, n_obs, skew, "
+                "kurt, fingerprint, preregistered_at, completed_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), scope, f"__scan__{i}", hypothesis.strip(),
+                 rationale.strip(), "{}", "completed",
+                 None, None, None, None, fp, _now(), _now()))
+            added += 1
+        self._conn.commit()
+        return added
+
     # --- 集計（DSR 用） ------------------------------------------------
     def trial_count(self, scope: str) -> int:
         """scope 内の完了試行数 K（DSR の試行数）。"""

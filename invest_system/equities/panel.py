@@ -9,7 +9,8 @@
 """
 from __future__ import annotations
 
-from typing import Optional
+from pathlib import Path
+from typing import Iterable, Optional
 
 import pandas as pd
 
@@ -79,3 +80,42 @@ def trailing_momentum(price: pd.DataFrame, lookback: int = 12,
     t の値は t-1 以前の価格のみ使用＝先読み無し。
     """
     return price.shift(skip) / price.shift(lookback) - 1.0
+
+
+def load_daily_panel(field: str = "AdjC", codes: Optional[Iterable] = None,
+                     start=None, end=None, base: Optional[str] = None,
+                     subdir: str = "daily") -> pd.DataFrame:
+    """by-date 日次ミラー（daily/）から wide パネル（index=日付, col=Code, 値=field）を組立。
+
+    柱D（ペア/平均回帰）は日次価格パネルを要するため、全件 by-date Parquet を連結→ピボット
+    する（load_fundamentals と同じミラー結合パターン）。各日の実値のみ＝先読みなし、ネット
+    ワーク不要（キャッシュ参照のみ）。field 既定は分割調整後終値 AdjC。codes/start/end で限定。
+    """
+    root = Path(base) if base is not None else jq._CACHE
+    d = root / subdir
+    frames = []
+    if d.exists():
+        for p in sorted(d.glob("*.parquet")):
+            df = pd.read_parquet(p)
+            if df.empty or "_empty" in df.columns:           # 祝日/無データ marker
+                continue
+            if {"Date", "Code", field}.issubset(df.columns):
+                frames.append(df[["Date", "Code", field]])
+    if not frames:
+        return pd.DataFrame()
+    long = pd.concat(frames, ignore_index=True)
+    long["Date"] = pd.to_datetime(long["Date"]).dt.normalize()
+    long["Code"] = long["Code"].astype(str)
+    if codes is not None:
+        want = {str(c) for c in codes}
+        long = long[long["Code"].isin(want)]
+    long = long.drop_duplicates(subset=["Date", "Code"], keep="last")
+    if long.empty:
+        return pd.DataFrame()
+    panel = long.pivot(index="Date", columns="Code", values=field).sort_index()
+    panel.columns = [str(c) for c in panel.columns]
+    if start is not None:
+        panel = panel.loc[pd.Timestamp(start):]
+    if end is not None:
+        panel = panel.loc[:pd.Timestamp(end)]
+    return panel

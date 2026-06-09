@@ -62,3 +62,21 @@ def test_more_trials_raise_the_bar():
     assert b.k == 30 and a.k == 3
     # 試行30の最良DSR は 試行3 の最良DSR を上回らない（デフレートが強まる）
     assert b.best.dsr <= a.best.dsr + 0.05
+
+
+def test_extra_trials_raise_the_bar_and_idempotent():
+    # 探索しただけの候補(extra_trials)も K に算入し最良DSRを押し下げる（DP13）
+    v, s = _noise_setup(3, seed=2)
+    with TrialRegistry(":memory:") as r0, TrialRegistry(":memory:") as rx:
+        base = judge_grid(s, v, scope="mr", hypothesis="meanrev pair scan",
+                          economic_rationale="cointegration candidates",
+                          registry=r0, costs_bps=0.0)
+        ext = judge_grid(s, v, scope="mr", hypothesis="meanrev pair scan",
+                         economic_rationale="cointegration candidates",
+                         registry=rx, costs_bps=0.0, extra_trials=40)
+        ext2 = judge_grid(s, v, scope="mr", hypothesis="meanrev pair scan",
+                          economic_rationale="cointegration candidates",
+                          registry=rx, costs_bps=0.0, extra_trials=40)
+    assert base.k == 3 and ext.k == 43            # 3 建玉 ＋ 40 スキャン
+    assert ext2.k == 43                           # 冪等（再実行で水増ししない）
+    assert ext.best.dsr <= base.best.dsr + 1e-9   # K 増でデフレート強化

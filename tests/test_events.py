@@ -4,9 +4,44 @@ import pandas as pd
 import pytest
 
 from invest_system.equities.events import (
-    days_to_next_announcement, earnings_surprise, expected_announcement_month,
-    forecast_revision,
+    buyback_intensity, days_to_next_announcement, dividend_forecast_revision,
+    earnings_surprise, expected_announcement_month, forecast_revision,
 )
+
+
+def test_dividend_forecast_revision_split_adjusted():
+    # 2:1 分割（係数 0.5 が 6/1 に適用）を挟み 1株配当 50→25 円：
+    # 無調整なら −50% の偽減配、分割調整後は改訂率 0。
+    fund = pd.DataFrame({
+        "Code": ["100", "100", "100"],
+        "DiscDate": pd.to_datetime(["2024-05-01", "2024-08-01", "2024-11-01"]),
+        "FDivAnn": [50.0, 25.0, 30.0],
+    })
+    idx = pd.date_range("2024-04-01", periods=250, freq="D")
+    af = pd.DataFrame(1.0, index=idx, columns=["100"])
+    af.loc["2024-06-01", "100"] = 0.5
+    adj_cum = af.cumprod()
+    naive = dividend_forecast_revision(fund).set_index("DiscDate")["div_revision"]
+    assert naive.loc["2024-08-01"] == pytest.approx(-0.50)
+    adj = dividend_forecast_revision(fund, adj_cum=adj_cum) \
+        .set_index("DiscDate")["div_revision"]
+    assert adj.loc["2024-08-01"] == pytest.approx(0.0)       # 分割の機械的減配は中立
+    assert adj.loc["2024-11-01"] == pytest.approx(0.20)      # 25→30 は真の増配 +20%
+
+
+def test_buyback_intensity_split_immune_and_signs():
+    fund = pd.DataFrame({
+        "Code": ["100", "100", "100", "100"],
+        "DiscDate": pd.to_datetime(["2024-02-01", "2024-05-01", "2024-08-01",
+                                    "2024-11-01"]),
+        # 取得（10→20）→ 2:1分割（両方2倍＝比率不変）→ 増資（ShOut+1000）
+        "TrShFY": [10.0, 20.0, 40.0, 40.0],
+        "ShOutFY": [1000.0, 1000.0, 2000.0, 3000.0],
+    })
+    out = buyback_intensity(fund).set_index("DiscDate")["buyback"]
+    assert out.loc["2024-05-01"] == pytest.approx(0.01)      # 自社株買い＝正
+    assert out.loc["2024-08-01"] == pytest.approx(0.0)       # 分割は比率不変
+    assert out.loc["2024-11-01"] < 0                         # 希薄化＝負
 
 
 def test_forecast_revision_per_code():

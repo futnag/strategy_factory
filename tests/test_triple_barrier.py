@@ -126,3 +126,97 @@ def test_min_ret_filters_events():
     events = get_events(close, t_events, pt_sl=[1, 1], trgt=trgt,
                         min_ret=0.01, vertical_barriers=vb)
     assert events.empty
+
+
+# --- 悲観モード（バー内 H/L・同足は損切り優先・約定規約）---------------------
+def _hlc(close_vals, high_vals, low_vals):
+    c = _close(close_vals)
+    h = pd.Series(high_vals, index=c.index, dtype=float)
+    lo = pd.Series(low_vals, index=c.index, dtype=float)
+    return c, h, lo
+
+
+def _one_event(close, **kw):
+    idx = close.index
+    t_events = pd.DatetimeIndex([idx[0]])
+    trgt = pd.Series(0.02, index=t_events)
+    vb = get_vertical_barriers(close, t_events, num_bars=5)
+    events = get_events(close, t_events, pt_sl=[1, 1], trgt=trgt,
+                        vertical_barriers=vb, **kw)
+    return events, get_bins(events, close)
+
+
+def test_pessimistic_same_bar_double_touch_prefers_stop():
+    # idx1 のバー内で +2%/-2% の両バリアを掃き、引けはフラット。
+    # 終値パス（既定）では無接触＝垂直、悲観モードでは「先に損切り」と判定する。
+    close, high, low = _hlc([100, 100, 100, 100, 100, 100, 100],
+                            [100, 103, 100, 100, 100, 100, 100],
+                            [100, 97, 100, 100, 100, 100, 100])
+    idx = close.index
+    ev_close, bins_close = _one_event(close)
+    assert ev_close.loc[idx[0], "t1"] == idx[5]          # 従来：垂直バリア
+    ev, bins = _one_event(close, high=high, low=low)
+    assert ev.loc[idx[0], "t1"] == idx[1]
+    assert ev.loc[idx[0], "touch"] == "sl"               # 両接触 → 損切り優先
+    assert bins.loc[idx[0], "ret"] == pytest.approx(-0.02)  # 水準と終値(0%)の悪い方
+    assert bins.loc[idx[0], "bin"] == -1
+
+
+def test_pessimistic_gap_through_stop_fills_at_close():
+    # idx1 で -2% の stop を大きく飛び越えて暴落（low=90, close=92）→ 実勢で約定。
+    close, high, low = _hlc([100, 92, 92, 92, 92, 92, 92],
+                            [100, 100, 92, 92, 92, 92, 92],
+                            [100, 90, 92, 92, 92, 92, 92])
+    idx = close.index
+    ev, bins = _one_event(close, high=high, low=low)
+    assert ev.loc[idx[0], "touch"] == "sl"
+    assert bins.loc[idx[0], "ret"] == pytest.approx(-0.08)   # min(-0.02, -0.08)
+
+
+def test_pessimistic_pt_fills_at_barrier_level():
+    # idx1 で高値が +2% バリアに接触（high=105）し引け +4%（close=104）→ 指値は水準で約定。
+    close, high, low = _hlc([100, 104, 104, 104, 104, 104, 104],
+                            [100, 105, 104, 104, 104, 104, 104],
+                            [100, 100, 104, 104, 104, 104, 104])
+    idx = close.index
+    ev, bins = _one_event(close, high=high, low=low)
+    assert ev.loc[idx[0], "touch"] == "pt"
+    assert bins.loc[idx[0], "ret"] == pytest.approx(0.02)    # +4% でなくバリア水準
+    assert bins.loc[idx[0], "bin"] == 1
+
+
+def test_pessimistic_entry_bar_extremes_ignored():
+    # エントリーバー idx0 の高値はバリア超だが、建値=当バー終値なので接触に使わない。
+    close, high, low = _hlc([100, 100, 100, 100, 100, 100, 100],
+                            [110, 100, 100, 100, 100, 100, 100],
+                            [95, 100, 100, 100, 100, 100, 100])
+    idx = close.index
+    ev, bins = _one_event(close, high=high, low=low)
+    assert ev.loc[idx[0], "touch"] == "t1"               # 垂直のみ
+    assert ev.loc[idx[0], "t1"] == idx[5]
+
+
+def test_pessimistic_short_side_uses_high_as_adverse():
+    # short(side=-1)：不利方向は高値。idx1 high=103 で -2%（side調整後）の stop に接触。
+    close, high, low = _hlc([100, 102, 102, 102, 102, 102, 102],
+                            [100, 103, 102, 102, 102, 102, 102],
+                            [100, 101, 102, 102, 102, 102, 102])
+    idx = close.index
+    t_events = pd.DatetimeIndex([idx[0]])
+    trgt = pd.Series(0.02, index=t_events)
+    side = pd.Series([-1.0], index=t_events)
+    vb = get_vertical_barriers(close, t_events, num_bars=5)
+    events = get_events(close, t_events, pt_sl=[1, 1], trgt=trgt,
+                        vertical_barriers=vb, side=side, high=high, low=low)
+    bins = get_bins(events, close)
+    assert events.loc[idx[0], "touch"] == "sl"
+    assert bins.loc[idx[0], "ret"] == pytest.approx(-0.02)   # min(-0.02, -0.02)
+    assert bins.loc[idx[0], "bin"] == 0                      # メタ：負け
+
+
+def test_pessimistic_requires_both_high_and_low():
+    close = _close([100, 100, 100])
+    t_events = pd.DatetimeIndex([close.index[0]])
+    trgt = pd.Series(0.02, index=t_events)
+    with pytest.raises(ValueError):
+        get_events(close, t_events, pt_sl=[1, 1], trgt=trgt, high=close)

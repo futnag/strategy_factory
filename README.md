@@ -22,7 +22,8 @@ statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は
 | L8 | `invest_system/equities/frictions.py` | 日本固有の執行フリクション（値幅制限の張り付き・貸借銘柄マスク・ボラ連動コスト）＝DP15/17 | §5 |
 | — | `invest_system/backtest/` | purged CPCV バックテスト（Sharpe を分布で評価） | §5.2 |
 | L9 | `invest_system/portfolio/` | ノイズ除去(RMT)、最小分散、HRP、NCO、フラクショナル・ケリー（DP16） | §6 |
-| — | `invest_system/research/strategies_tsmom.py` | マルチアセット時系列モメンタム（MOP2012型・柱E候補＝保留、[`docs/03`§6.15]） | — |
+| — | `invest_system/research/strategies_tsmom.py` | マルチアセット時系列モメンタム（MOP2012型・§6.16で併載決定） | — |
+| L10-11 | `invest_system/production/` | Phase 2 注文生成（単元未満株・指数ヘッジ置換・ロット丸め＝D5） | — |
 
 > **柱D（時系列・統計的裁定／Ernie Chan 補完）＝実装済み**：`invest_system/timeseries/` ＋
 > `research/strategies_meanrev.py` の `CointegratedPairs`/`JohansenBasket`/`LinearMeanReversion`、

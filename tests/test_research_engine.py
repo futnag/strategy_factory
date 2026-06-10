@@ -91,3 +91,79 @@ def test_ann_factor_inference():
     assert 230 < _ann_factor(daily) < 270          # 日次 ≈ 252
     monthly = pd.date_range("2016-01-31", periods=120, freq="ME")
     assert 11.5 < _ann_factor(monthly) < 12.5       # 月次 ≈ 12
+
+
+# --- 執行現実性（値幅制限の執行不能・貸株コスト）-----------------------------
+
+def _timing_setup():
+    idx = pd.date_range("2024-01-01", periods=4, freq="D")
+    close = pd.DataFrame({"A": [100., 110, 121, 133.1]}, index=idx)  # 毎日+10%
+    flags = pd.DataFrame(False, index=idx, columns=["A"])
+    return idx, close, flags
+
+
+def test_no_buy_blocks_entry_then_enters():
+    idx, close, flags = _timing_setup()
+    sig = pd.Series(1.0, index=idx)                       # 常時ロング希望
+    strat = SignalTimingStrategy(sig, "A", threshold=0.0)
+    nb = flags.copy()
+    nb.loc[idx[0], "A"] = True                            # d0 はストップ高引け＝買えない
+    view = AsOfView({"close": close})
+    res = backtest(strat, view, costs_bps=0.0, no_buy=nb)
+    assert res.returns.loc[idx[0]] == 0.0                 # 建てられず現金
+    assert res.n_blocked.loc[idx[0]] == 1
+    assert res.n_positions.loc[idx[0]] == 0
+    assert res.returns.loc[idx[1]] == pytest.approx(0.10)  # 翌日に建つ
+    assert res.turnover.loc[idx[1]] == pytest.approx(1.0)
+
+
+def test_no_sell_blocks_exit_and_carries_position():
+    idx, close, flags = _timing_setup()
+    sig = pd.Series([1.0, 0.0, 0.0, 0.0], index=idx)      # d1 で手仕舞いたい
+    strat = SignalTimingStrategy(sig, "A", threshold=0.5)
+    ns = flags.copy()
+    ns.loc[idx[1], "A"] = True                            # d1 はストップ安引け＝売れない
+    view = AsOfView({"close": close})
+    res = backtest(strat, view, costs_bps=0.0, no_sell=ns)
+    assert res.returns.loc[idx[1]] == pytest.approx(0.10)  # 持ち越し＝d1→d2 を被る
+    assert res.n_blocked.loc[idx[1]] == 1
+    assert res.n_positions.loc[idx[1]] == 1
+    assert res.n_positions.loc[idx[2]] == 0               # 翌日に決済できた
+    assert res.turnover.loc[idx[2]] == pytest.approx(1.0)
+
+
+def test_all_false_flags_match_baseline():
+    idx, close, factor, adv = _xs_setup()
+    view = AsOfView({"close": close})
+    base = backtest(CrossSectionalStrategy(factor, quantile=0.2), view,
+                    costs_bps=15.0)
+    nb = pd.DataFrame(False, index=close.index, columns=close.columns)
+    flagged = backtest(CrossSectionalStrategy(factor, quantile=0.2), view,
+                       costs_bps=15.0, no_buy=nb, no_sell=nb.copy())
+    pd.testing.assert_series_equal(base.returns, flagged.returns)
+    pd.testing.assert_series_equal(base.turnover, flagged.turnover)
+
+
+def test_no_buy_respects_execution_lag():
+    idx, close, flags = _timing_setup()
+    sig = pd.Series(1.0, index=idx)
+    strat = SignalTimingStrategy(sig, "A", threshold=0.0)
+    nb = flags.copy()
+    nb.loc[idx[1], "A"] = True                  # 執行バー（t0+lag1=d1）が張り付き
+    view = AsOfView({"close": close})
+    res = backtest(strat, view, costs_bps=0.0, execution_lag=1, no_buy=nb)
+    assert res.returns.loc[idx[0]] == 0.0       # d1 執行できず
+    assert res.n_blocked.loc[idx[0]] == 1
+
+
+def test_short_borrow_cost_charged_on_short_gross():
+    idx, close, factor, adv = _xs_setup()
+    view = AsOfView({"close": close})
+    strat = CrossSectionalStrategy(factor, quantile=0.2)   # long F / short A（|短|=1）
+    free = backtest(strat, view, costs_bps=0.0)
+    costed = backtest(strat, view, costs_bps=0.0, short_borrow_bps=120.0)
+    assert costed.short_gross.loc[idx[0]] == pytest.approx(1.0)
+    per_period = 120.0 / 1e4 / _ann_factor(pd.DatetimeIndex(free.returns.index))
+    diff = free.returns.loc[idx[0]] - costed.returns.loc[idx[0]]
+    assert diff == pytest.approx(per_period)               # 短グロス×期間按分の控除
+    pd.testing.assert_series_equal(free.gross, costed.gross)  # gross は不変

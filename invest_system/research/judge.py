@@ -139,10 +139,13 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
                costs_bps: float = 15.0, price_field: str = "close",
                rebalance=None, dsr_threshold: float = 0.95,
                execution_lag: int = 0, adv=None, participation: float = 0.1,
+               no_buy=None, no_sell=None, short_borrow_bps: float = 0.0,
                extra_trials: int = 0) -> GridVerdict:
     """戦略群（格子）を裁く。各点を事前登録＋記録し、scope の K でデフレート。
 
     execution_lag/adv/participation はバックテストの現実性（執行遅延・容量）に渡す。
+    no_buy/no_sell/short_borrow_bps は日本市場の執行フリクション（値幅制限の執行不能・
+      貸株コスト）をエンジンへ渡す（equities/frictions.py 参照）。
     extra_trials: 探索しただけで建玉に至らない候補（CADF 等で事前棄却したペア）の数。
       K に算入し DSR をデフレートする（ペア探索の SBuMT 制御・DP13・KB §11.7）。
     """
@@ -150,7 +153,9 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
     for s in strategies:
         res = backtest(s, view, costs_bps=costs_bps, price_field=price_field,
                        rebalance=rebalance, execution_lag=execution_lag,
-                       adv=adv, participation=participation)
+                       adv=adv, participation=participation,
+                       no_buy=no_buy, no_sell=no_sell,
+                       short_borrow_bps=short_borrow_bps)
         r = res.returns.dropna()
         if r.size < 8 or r.std(ddof=1) == 0:
             continue

@@ -45,8 +45,8 @@ from invest_system.equities.factors import (  # noqa: E402
 from invest_system.equities.stability import pre_post_sharpe  # noqa: E402
 from invest_system.research import (  # noqa: E402
     AsOfView, CompositeStrategy, CrossSectionalStrategy, RegimeGated,
-    RegimeSwitch, Strategy, judge_grid, regime_breakdown, walk_forward_regime_assignment,
-    write_html,
+    RegimeSwitch, Strategy, backtest, judge_grid, regime_breakdown,
+    walk_forward_regime_assignment, write_html,
 )
 from invest_system.timeseries import trend_regime, vol_regime  # noqa: E402
 from invest_system.validation.dsr import sharpe_ratio  # noqa: E402
@@ -73,6 +73,52 @@ class _Replay(Strategy):
 
     def target_weights(self, asof):
         return self._w.get(asof.asof, pd.Series(dtype="float64"))
+
+
+def _robustness_sweep(daily, view, rebal, wf_dates, value_ls, pead_lt, Wmap, Rv, Rp):
+    """vol窓×コストの感応度スイープ（throwaway・**全構成の分布**で評価）。
+
+    頑健性≠最適化：最良セルを選ばず、最悪セルでもエッジが残るかを見る（最良選別は p-hack）。
+    value/PEAD 重みは regime 非依存ゆえ再利用。各 vol窓で switch/wf を gross+turnover で1回 backtest し、
+    net SR は各コストで解析的（net=gross−cost·turnover）＝安価。永続レジストリには記録しない。
+    """
+    vol_windows = [20, 40, 60, 90, 120]
+    costs = [10.0, 15.0, 25.0, 40.0]
+
+    def net_sr(res, cost, oos=False):
+        net = (res.gross - cost / 1e4 * res.turnover).dropna()
+        if oos:
+            net = net[net.index >= pd.Timestamp(OOS)]
+        return float(sharpe_ratio(net) * np.sqrt(12)) if net.size >= 8 else float("nan")
+
+    print("\n=== 頑健性スイープ（vol窓 × コスト・throwaway・分布で評価）===")
+    print(f"  vol窓={vol_windows} / コストbps={[int(c) for c in costs]} / 指標=年率Sharpe")
+    worst = {}
+    for label in ("switch", "wf"):
+        print(f"\n  [{label}]  行=vol窓 / 上段=全期間SR・下段=OOS-SR / 列=コスト{[int(c) for c in costs]}")
+        oos_cells = []
+        for vw in vol_windows:
+            vmw = vol_regime(daily, window=vw).reindex(rebal, method="ffill")
+            if label == "switch":
+                strat = RegimeSwitch(vmw, {0.0: value_ls, 1.0: value_ls, 2.0: pead_lt},
+                                     name=f"switch@{vw}")
+            else:
+                asg = walk_forward_regime_assignment(
+                    {"value": Rv, "pead_longtilt": Rp}, vmw,
+                    min_obs=WF_MINOBS, warmup=WF_WARMUP)
+                AWw = {t: (Wmap[asg.get(t)][t] if isinstance(asg.get(t), str)
+                           else pd.Series(dtype="float64")) for t in rebal}
+                strat = _Replay(AWw, name=f"wf@{vw}", params={})
+            res = backtest(strat, view, costs_bps=0.0, rebalance=wf_dates)
+            allr = [net_sr(res, c) for c in costs]
+            oosr = [net_sr(res, c, oos=True) for c in costs]
+            oos_cells += oosr
+            print(f"   {vw:>4} 全 " + "".join(f"{x:>+7.2f}" for x in allr))
+            print(f"   {'':>4} OOS" + "".join(f"{x:>+7.2f}" for x in oosr))
+        worst[label] = min(oos_cells)
+    print(f"\n  最悪セルの OOS-SR: static switch={worst['switch']:+.2f} / "
+          f"wf_switch={worst['wf']:+.2f}  （全{len(vol_windows) * len(costs)}構成で正なら"
+          "結論は特定 vol窓/コストに依存しない＝頑健）")
 
 
 def _isoos(v) -> None:
@@ -227,6 +273,9 @@ def main() -> int:
 
     print("\n※ 最終判定：wf_switch が switch（静的・in-sample）と同等の DSR/OOS を保てば、割当は過去から"
           " 学習可能＝エッジは過学習でない。崩れれば静的 switch は in-sample 産物。真の将来検証は 2026-05 以降。")
+
+    if (get_env("J_VPR_ROBUST", "0") or "0") == "1":      # 頑健性スイープ（opt-in・throwaway）
+        _robustness_sweep(daily, view, rebal, wf_dates, value_ls, pead_lt, Wmap, Rv, Rp)
     return 0
 
 

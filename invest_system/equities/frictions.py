@@ -100,6 +100,23 @@ def shortable_mask(margin_weekly: pd.DataFrame, dates,
     return ((vals_at > 0) & fresh).astype(bool)
 
 
+def vol_scaled_cost_bps(vol_daily: pd.DataFrame, *, base_bps: float = 10.0,
+                        k: float = 0.05) -> pd.DataFrame:
+    """ボラ連動の片道コスト（bps）パネル：cost[t,c] = base_bps + k×日次σ[t,c]×1e4。
+
+    日足では日中の流動性の偏り（板薄時間帯・荒れ相場でのスリッページ増）を直接観測
+    できないため、**荒い相場ほど約定を不利に滑らせる**保守化で擬似再現する（ATR/実現
+    ボラ連動ペナルティ）。vol_daily は日次リターンの実現σ wide（例：
+    `adj_close.pct_change().rolling(20).std()`、Gold 層の vol_20 と同形）。
+    k は「1日σの何割を滑りとして払うか」（実務の粗い目安 0.05〜0.10）。σ=2% なら
+    k=0.05 で +10bps。σ が NaN（上場直後等）は base のみ＝追加ペナルティ無し。
+    エンジンには `backtest(costs_bps=パネル)` / `open_fill_backtest(costs_bps=パネル)`
+    として渡す（執行バー／約定日の行が参照される）。
+    """
+    penalty = (k * vol_daily * 1e4).fillna(0.0)
+    return penalty.add(base_bps).clip(lower=base_bps)
+
+
 def short_notional_coverage(weights: pd.Series, shortable_row: pd.Series) -> float:
     """ある時点のウェイトのうち、ショート想定元本が貸借銘柄で占める割合（診断用）。
 

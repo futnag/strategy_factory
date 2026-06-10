@@ -8,7 +8,7 @@
 """
 
 from .data_view import AsOf, AsOfView
-from .engine import BacktestResult, backtest
+from .engine import BacktestResult, backtest, open_fill_backtest
 from .judge import (
     GridVerdict, StrategyVerdict, judge_grid, regime_breakdown,
     walk_forward_regime_assignment,
@@ -40,6 +40,7 @@ __all__ = [
     "RegimeGated",
     "RegimeSwitch",
     "backtest",
+    "open_fill_backtest",
     "BacktestResult",
     "judge_grid",
     "regime_breakdown",

@@ -1,8 +1,11 @@
 """日本市場の執行フリクション（値幅制限・貸借銘柄マスク）の検証。ネットワーク不要。"""
+import numpy as np
 import pandas as pd
+import pytest
 
 from invest_system.equities.frictions import (
     limit_lock_flags, short_notional_coverage, shortable_mask,
+    vol_scaled_cost_bps,
 )
 
 
@@ -81,3 +84,13 @@ def test_short_notional_coverage():
     row = pd.Series({"A": True, "B": True, "C": False})
     assert short_notional_coverage(w, row) == 0.6
     assert short_notional_coverage(pd.Series({"A": 1.0}), row) == 1.0
+
+
+def test_vol_scaled_cost_bps():
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    vol = pd.DataFrame({"A": [0.02, np.nan], "B": [0.04, 0.0]}, index=idx)
+    cost = vol_scaled_cost_bps(vol, base_bps=10.0, k=0.05)
+    assert cost.loc[idx[0], "A"] == pytest.approx(10.0 + 0.05 * 0.02 * 1e4)  # 20bp
+    assert cost.loc[idx[0], "B"] == pytest.approx(30.0)
+    assert cost.loc[idx[1], "A"] == pytest.approx(10.0)    # σ欠損は base のみ
+    assert cost.loc[idx[1], "B"] == pytest.approx(10.0)    # σ=0 も base 下限

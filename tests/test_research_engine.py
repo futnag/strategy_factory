@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from invest_system.research.data_view import AsOfView
-from invest_system.research.engine import backtest, _ann_factor
+from invest_system.research.engine import backtest, _ann_factor, open_fill_backtest
 from invest_system.research.strategy import (
     CrossSectionalStrategy, GapReversal, SignalTimingStrategy,
 )
@@ -167,3 +167,80 @@ def test_short_borrow_cost_charged_on_short_gross():
     diff = free.returns.loc[idx[0]] - costed.returns.loc[idx[0]]
     assert diff == pytest.approx(per_period)               # 短グロス×期間按分の控除
     pd.testing.assert_series_equal(free.gross, costed.gross)  # gross は不変
+
+
+# --- 状態依存コスト（銘柄×日付の bps パネル）---------------------------------
+
+def test_cost_panel_charges_per_name():
+    idx, close, factor, adv = _xs_setup()        # long F / short A（|Δw|=1 ずつ）
+    view = AsOfView({"close": close})
+    panel = pd.DataFrame(0.0, index=close.index, columns=close.columns)
+    panel["A"] = 100.0                           # A だけ 100bps、他は 0bps
+    base = backtest(CrossSectionalStrategy(factor, 0.2), view, costs_bps=0.0)
+    var = backtest(CrossSectionalStrategy(factor, 0.2), view, costs_bps=panel)
+    diff = base.returns.loc[idx[0]] - var.returns.loc[idx[0]]
+    assert diff == pytest.approx(1.0 * 100.0 / 1e4)        # |Δw_A|×100bp のみ課金
+
+
+def test_cost_panel_constant_equals_scalar():
+    idx, close, factor, adv = _xs_setup()
+    view = AsOfView({"close": close})
+    panel = pd.DataFrame(15.0, index=close.index, columns=close.columns)
+    s = backtest(CrossSectionalStrategy(factor, 0.2), view, costs_bps=15.0)
+    p = backtest(CrossSectionalStrategy(factor, 0.2), view, costs_bps=panel)
+    pd.testing.assert_series_equal(s.returns, p.returns)
+
+
+# --- T+1 始値執行リプレイ（open_fill_backtest・DP17）--------------------------
+
+def _daily_open():
+    idx = pd.date_range("2024-01-01", periods=10, freq="D")
+    open_px = pd.DataFrame({"A": np.linspace(100.0, 109.0, 10)}, index=idx)
+    return idx, open_px
+
+
+def test_open_fill_executes_next_day_open():
+    idx, open_px = _daily_open()
+    w = {idx[1]: pd.Series({"A": 1.0}),          # 決定 d1 → 約定 d2
+         idx[4]: pd.Series({"A": 1.0}),          # 決定 d4 → 約定 d5
+         idx[7]: pd.Series({"A": 1.0})}          # 最後の決定は評価不能で脱落
+    res = open_fill_backtest(w, open_px, costs_bps=10.0)
+    assert list(res.returns.index) == [idx[1], idx[4]]
+    exp1 = open_px.loc[idx[5], "A"] / open_px.loc[idx[2], "A"] - 1.0
+    assert res.gross.loc[idx[1]] == pytest.approx(exp1)    # open(d5)/open(d2)-1
+    assert res.returns.loc[idx[1]] == pytest.approx(exp1 - 10.0 / 1e4 * 1.0)
+    assert res.turnover.loc[idx[4]] == pytest.approx(0.0)  # 同一ウェイト→無回転
+    assert res.returns.loc[idx[4]] == pytest.approx(
+        open_px.loc[idx[8], "A"] / open_px.loc[idx[5], "A"] - 1.0)
+
+
+def test_open_fill_decision_close_not_used():
+    # 決定日の終値が約定に使われないこと＝寄りギャップを負担することの確認。
+    idx, open_px = _daily_open()
+    open_px.loc[idx[2], "A"] = 200.0             # 約定日の寄りが大きく窓開け
+    w = {idx[1]: pd.Series({"A": 1.0}), idx[4]: pd.Series({"A": 1.0})}
+    res = open_fill_backtest(w, open_px, costs_bps=0.0)
+    exp = open_px.loc[idx[5], "A"] / 200.0 - 1.0           # 不利な寄りで建つ
+    assert res.gross.loc[idx[1]] == pytest.approx(exp)
+
+
+def test_open_fill_borrow_and_cost_panel():
+    idx, open_px = _daily_open()
+    w = {idx[1]: pd.Series({"A": -1.0}), idx[4]: pd.Series({"A": -1.0})}
+    panel = pd.DataFrame(50.0, index=idx, columns=["A"])   # 約定日の行を参照
+    res = open_fill_backtest(w, open_px, costs_bps=panel, short_borrow_bps=120.0)
+    ann = _ann_factor(pd.DatetimeIndex([idx[1]]))          # 決定日列から推定（<3→252）
+    exp_gross = open_px.loc[idx[5], "A"] / open_px.loc[idx[2], "A"] - 1.0
+    # gross = w·rel = -1×(+ret)。net = gross − cost(1×50bp) − borrow(120bp/ann×1)
+    assert res.gross.loc[idx[1]] == pytest.approx(-exp_gross)
+    assert res.returns.loc[idx[1]] == pytest.approx(
+        -exp_gross - 50.0 / 1e4 - 120.0 / 1e4 / ann)
+    assert res.short_gross.loc[idx[1]] == pytest.approx(1.0)
+
+
+def test_open_fill_nan_open_skips_pnl():
+    idx, open_px = _daily_open()
+    open_px.loc[idx[2], "A"] = np.nan            # 約定日の寄りが無い（売買不成立）
+    w = {idx[1]: pd.Series({"A": 1.0}), idx[4]: pd.Series({"A": 1.0})}
+    res = open_fill_backtest(w, open_px, costs_bps=0.0)
+    assert res.gross.loc[idx[1]] == pytest.approx(0.0)     # 損益に寄与しない

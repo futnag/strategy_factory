@@ -4,9 +4,72 @@ import pandas as pd
 import pytest
 
 from invest_system.equities.events import (
-    buyback_intensity, days_to_next_announcement, dividend_forecast_revision,
-    earnings_surprise, expected_announcement_month, forecast_revision,
+    announcement_delay, buyback_intensity, days_to_next_announcement,
+    dividend_forecast_revision, earnings_surprise, expected_announcement_month,
+    forecast_revision, guidance_conservatism,
 )
+
+
+def test_announcement_delay_same_quarter_yoy():
+    fund = pd.DataFrame({
+        "Code": ["100"] * 5,
+        "CurPerType": ["FY", "1Q", "FY", "1Q", "FY"],
+        "DocType": ["FYFinancialStatements_Consolidated_JP",
+                    "1QFinancialStatements_Consolidated_JP",
+                    "FYFinancialStatements_Consolidated_JP",
+                    "EarnForecastRevision",          # 臨時開示は発表日と数えない
+                    "FYFinancialStatements_Consolidated_JP"],
+        "DiscDate": pd.to_datetime(["2023-05-10", "2023-08-01", "2024-05-20",
+                                    "2024-08-05", "2026-05-10"]),
+    })
+    out = announcement_delay(fund).set_index("DiscDate")["delay_days"]
+    # FY: 2023-05-10 → 2024-05-20 ＝ 376日 → 遅延 +11日
+    assert out.loc["2024-05-20"] == pytest.approx(11.0)
+    # 1Q の2回目は EarnForecastRevision なので除外＝ペア不成立
+    assert pd.Timestamp("2024-08-05") not in out.index
+    # FY: 2024→2026 は 720日 ＝ 範囲外（年度ズレ）→ 採用しない
+    assert pd.Timestamp("2026-05-10") not in out.index
+
+
+def _fy_row(code, disc, fy_end, eps, nxf, nxt_end):
+    return {"Code": code, "DiscDate": disc, "CurPerType": "FY", "EPS": eps,
+            "NxFEPS": nxf, "CurFYEn": fy_end, "NxtFYEn": nxt_end}
+
+
+def test_guidance_conservatism_habitual_beater():
+    # 毎年「期初予想100 → 実績120」＝常習ビーター（surprise +20% が並ぶ）
+    rows = [
+        _fy_row("100", "2020-05-10", "2020-03-31", 110.0, 100.0, "2021-03-31"),
+        _fy_row("100", "2021-05-10", "2021-03-31", 120.0, 100.0, "2022-03-31"),
+        _fy_row("100", "2022-05-10", "2022-03-31", 120.0, 100.0, "2023-03-31"),
+        _fy_row("100", "2023-05-10", "2023-03-31", 120.0, 100.0, "2024-03-31"),
+    ]
+    fund = pd.DataFrame(rows)
+    fund["DiscDate"] = pd.to_datetime(fund["DiscDate"])
+    out = guidance_conservatism(fund, n_years=3, min_years=2) \
+        .set_index("DiscDate")["cons_score"]
+    # 2021開示: surprise(2021年度実績120 vs 期初100)=+20% のみ → min_years 未満で無効
+    assert pd.Timestamp("2021-05-10") not in out.index
+    # 2022開示: surprise +20%, +20% → 平均 +20%
+    assert out.loc["2022-05-10"] == pytest.approx(0.20)
+    assert out.loc["2023-05-10"] == pytest.approx(0.20)
+
+
+def test_guidance_conservatism_requires_fy_alignment():
+    # 年度が飛ぶ（NxtFYEn ≠ 次行の CurFYEn）場合は surprise を作らない
+    rows = [
+        _fy_row("100", "2020-05-10", "2020-03-31", 100.0, 100.0, "2021-03-31"),
+        _fy_row("100", "2022-05-10", "2022-03-31", 200.0, 100.0, "2023-03-31"),
+        _fy_row("100", "2023-05-10", "2023-03-31", 50.0, 100.0, "2024-03-31"),
+    ]
+    fund = pd.DataFrame(rows)
+    fund["DiscDate"] = pd.to_datetime(fund["DiscDate"])
+    out = guidance_conservatism(fund, n_years=3, min_years=1) \
+        .set_index("DiscDate")["cons_score"]
+    # 2022開示: 前行の NxtFYEn=2021-03 ≠ CurFYEn=2022-03 → 整合せず surprise 無し
+    assert pd.Timestamp("2022-05-10") not in out.index
+    # 2023開示: 前行(2022)の NxtFYEn=2023-03 == CurFYEn=2023-03 → (50-100)/100 = -50%
+    assert out.loc["2023-05-10"] == pytest.approx(-0.50)
 
 
 def test_dividend_forecast_revision_split_adjusted():

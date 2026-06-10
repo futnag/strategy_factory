@@ -113,6 +113,75 @@ def buyback_intensity(fund_long: pd.DataFrame, date_col: str = "DiscDate",
     return df.dropna(subset=["buyback"])[cols]
 
 
+def guidance_conservatism(fund_long: pd.DataFrame, n_years: int = 3,
+                          min_years: int = 2, date_col: str = "DiscDate",
+                          code_col: str = "Code") -> pd.DataFrame:
+    """期初ガイダンス保守バイアス・スコア → [Code, DiscDate, cons_score]。
+
+    日本企業は期初予想を系統的に低く出し期中に上方修正する行動が知られる（保守的開示）。
+    本関数は「常習的な過小設定」を銘柄属性としてスコア化する：
+      surprise(年度) = (実績EPS − 期初予想EPS) / |期初予想EPS|
+      期初予想 = 前年 FY 本決算行で開示された来期予想 NxFEPS（年度整合は
+                 prev.NxtFYEn == cur.CurFYEn で厳密に取る）
+      cons_score = 直近 n_years 件の surprise 平均（min_years 件以上で有効）
+    スコアは FY 本決算の開示日に更新される＝PIT（その時点で実績と期初予想が両方既知）。
+    正＝常習ビーター（保守的ガイダンス）、負＝常習未達（楽観的ガイダンス）。
+    """
+    cols = [code_col, date_col, "cons_score"]
+    need = {code_col, date_col, "CurPerType", "EPS", "NxFEPS"}
+    if fund_long.empty or not need.issubset(fund_long.columns):
+        return pd.DataFrame(columns=cols)
+    df = fund_long[fund_long["CurPerType"] == "FY"].dropna(subset=[date_col]).copy()
+    df[date_col] = pd.to_datetime(df[date_col])
+    for c in ("EPS", "NxFEPS"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    for c in ("CurFYEn", "NxtFYEn"):
+        if c in df.columns:
+            df[c] = pd.to_datetime(df[c], errors="coerce")
+    df = df.sort_values([code_col, date_col])
+    df = df[~df.duplicated([code_col, date_col], keep="last")]
+    g = df.groupby(code_col)
+    prev_guid = g["NxFEPS"].shift(1)
+    if "NxtFYEn" in df.columns and "CurFYEn" in df.columns:
+        aligned = g["NxtFYEn"].shift(1) == df["CurFYEn"]   # 年度の厳密整合
+        prev_guid = prev_guid.where(aligned)
+    surprise = (df["EPS"] - prev_guid) / prev_guid.abs().replace(0, np.nan)
+    df["_s"] = surprise
+    df["cons_score"] = (df.groupby(code_col)["_s"]
+                        .transform(lambda s: s.rolling(n_years,
+                                                       min_periods=min_years).mean()))
+    return df.dropna(subset=["cons_score"])[cols]
+
+
+def announcement_delay(fund_long: pd.DataFrame, lo_days: int = 300,
+                       hi_days: int = 430, date_col: str = "DiscDate",
+                       code_col: str = "Code") -> pd.DataFrame:
+    """決算発表の前年同期比の前倒し/遅延（日数）→ [Code, DiscDate, delay_days]。
+
+    開示行動の古典仮説「good news early, bad news late」（悪い決算ほど発表が遅れる）の
+    シグナル化。同一 CurPerType（1Q/2Q/3Q/FY）の**前年開示日＋365日**を基準に、実開示日
+    との差を取る（正＝遅延・負＝前倒し）。前年同期ペアは経過 lo_days〜hi_days 日のものに
+    限定（年度ズレ・変則決算の混入防止）。DocType 列があれば決算短信
+    （*FinancialStatements*）のみ対象＝予想修正等の臨時開示は発表日と数えない。
+    """
+    cols = [code_col, date_col, "delay_days"]
+    need = {code_col, date_col, "CurPerType"}
+    if fund_long.empty or not need.issubset(fund_long.columns):
+        return pd.DataFrame(columns=cols)
+    df = fund_long.dropna(subset=[date_col]).copy()
+    if "DocType" in df.columns:
+        df = df[df["DocType"].astype(str).str.contains("FinancialStatements",
+                                                       na=False)]
+    df = df[df["CurPerType"].isin(["1Q", "2Q", "3Q", "FY"])]
+    df[date_col] = pd.to_datetime(df[date_col])
+    df = df.sort_values([code_col, date_col])
+    df = df[~df.duplicated([code_col, "CurPerType", date_col], keep="last")]
+    prev = df.groupby([code_col, "CurPerType"])[date_col].shift(1)
+    gap = (df[date_col] - prev).dt.days
+    df["delay_days"] = (gap - 365.0).where((gap >= lo_days) & (gap <= hi_days))
+    return df.dropna(subset=["delay_days"])[cols]
+
+
 def expected_announcement_month(fund_long: pd.DataFrame, rebal_dates,
                                 date_col: str = "DiscDate",
                                 code_col: str = "Code") -> pd.DataFrame:

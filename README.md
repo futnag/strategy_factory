@@ -22,6 +22,7 @@ statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は
 | L8 | `invest_system/equities/frictions.py` | 日本固有の執行フリクション（値幅制限の張り付き・貸借銘柄マスク・ボラ連動コスト）＝DP15/17 | §5 |
 | — | `invest_system/backtest/` | purged CPCV バックテスト（Sharpe を分布で評価） | §5.2 |
 | L9 | `invest_system/portfolio/` | ノイズ除去(RMT)、最小分散、HRP、NCO、フラクショナル・ケリー（DP16） | §6 |
+| — | `invest_system/research/strategies_tsmom.py` | マルチアセット時系列モメンタム（MOP2012型・柱E候補＝保留、[`docs/03`§6.15]） | — |
 
 > **柱D（時系列・統計的裁定／Ernie Chan 補完）＝実装済み**：`invest_system/timeseries/` ＋
 > `research/strategies_meanrev.py` の `CointegratedPairs`/`JohansenBasket`/`LinearMeanReversion`、
@@ -103,7 +104,8 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
   `research_value_pead_realism.py`（執行現実性チェック＝値幅制限・貸株コスト・ケリー、[`docs/03`§6.12]）、
   `research_value_pead_timing.py`（執行タイミング＝T+1始値・ボラ連動スリッページ、[`docs/03`§6.13]）、
   `research_index_events.py`（日経225入替イベント＝検証済み発表日付きイベント表
-  `equities/index_events.py` で裁定、[`docs/03`§6.14]）。
+  `equities/index_events.py` で裁定、[`docs/03`§6.14]）、
+  `research_tsmom_multiasset.py`（マルチアセットTSMOM・11資産・T+1始値、[`docs/03`§6.15]）。
 - 全ユニバースの財務 as-of は `equities/fundamentals.py` の `fundamentals_panel()`／`load_fundamentals()`
   （全件ミラーを先読みなしで組立）。ファクターは `equities/factors.py`（value/quality/size/momentum/
   配当利回り/低ボラ/アクルーアル）。

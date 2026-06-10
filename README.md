@@ -105,7 +105,9 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
   `research_value_pead_timing.py`（執行タイミング＝T+1始値・ボラ連動スリッページ、[`docs/03`§6.13]）、
   `research_index_events.py`（日経225入替イベント＝検証済み発表日付きイベント表
   `equities/index_events.py` で裁定、[`docs/03`§6.14]）、
-  `research_tsmom_multiasset.py`（マルチアセットTSMOM・11資産・T+1始値、[`docs/03`§6.15]）。
+  `research_tsmom_multiasset.py`（マルチアセットTSMOM・11資産・T+1始値、[`docs/03`§6.15]）、
+  `research_switch_tsmom_combo.py`（旗艦×TSMOM の2スリーブ合成判定＝**PASS・併載決定**、
+  [`docs/03`§6.16]）。
 - 全ユニバースの財務 as-of は `equities/fundamentals.py` の `fundamentals_panel()`／`load_fundamentals()`
   （全件ミラーを先読みなしで組立）。ファクターは `equities/factors.py`（value/quality/size/momentum/
   配当利回り/低ボラ/アクルーアル）。

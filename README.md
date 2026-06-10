@@ -19,7 +19,7 @@ statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は
 | L5/L7 | `invest_system/labeling/` | トリプルバリア、メタラベリング＋ベットサイジング | §4 |
 | L6 | `invest_system/sampling/` | サンプル独自性（非IID重み付け）、逐次ブートストラップ | §4.3 |
 | L8 | `invest_system/validation/` | パージング/エンバーゴ、CPCV、DSR、試行レジストリ | §5 |
-| L8 | `invest_system/equities/frictions.py` | 日本固有の執行フリクション（値幅制限の張り付き・貸借銘柄マスク）＝DP15 | §5 |
+| L8 | `invest_system/equities/frictions.py` | 日本固有の執行フリクション（値幅制限の張り付き・貸借銘柄マスク・ボラ連動コスト）＝DP15/17 | §5 |
 | — | `invest_system/backtest/` | purged CPCV バックテスト（Sharpe を分布で評価） | §5.2 |
 | L9 | `invest_system/portfolio/` | ノイズ除去(RMT)、最小分散、HRP、NCO、フラクショナル・ケリー（DP16） | §6 |
 
@@ -100,7 +100,8 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
   ```
 - **代表的な検証スクリプト**：`research_value_pead_longtilt.py`（最有力候補 value＋ロングティルトPEAD）、
   `research_breadth_factors.py`（value×momentum×quality×low-vol の多ファクター breadth）、
-  `research_value_pead_realism.py`（執行現実性チェック＝値幅制限・貸株コスト・ケリー、[`docs/03`§6.12]）。
+  `research_value_pead_realism.py`（執行現実性チェック＝値幅制限・貸株コスト・ケリー、[`docs/03`§6.12]）、
+  `research_value_pead_timing.py`（執行タイミング＝T+1始値・ボラ連動スリッページ、[`docs/03`§6.13]）。
 - 全ユニバースの財務 as-of は `equities/fundamentals.py` の `fundamentals_panel()`／`load_fundamentals()`
   （全件ミラーを先読みなしで組立）。ファクターは `equities/factors.py`（value/quality/size/momentum/
   配当利回り/低ボラ/アクルーアル）。

@@ -13,6 +13,7 @@ from .judge import GridVerdict, StrategyVerdict, judge_grid, regime_breakdown
 from .report_html import to_html, write_html
 from .strategies_meanrev import (
     CointegratedPairs, JohansenBasket, LinearMeanReversion, RegimeGated,
+    RegimeSwitch,
 )
 from .strategy import (
     CalendarStrategy, CompositeStrategy, CrossSectionalStrategy, EarningsRunup,
@@ -34,6 +35,7 @@ __all__ = [
     "JohansenBasket",
     "LinearMeanReversion",
     "RegimeGated",
+    "RegimeSwitch",
     "backtest",
     "BacktestResult",
     "judge_grid",

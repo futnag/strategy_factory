@@ -45,7 +45,7 @@ from invest_system.equities.factors import (  # noqa: E402
 from invest_system.equities.stability import pre_post_sharpe  # noqa: E402
 from invest_system.research import (  # noqa: E402
     AsOfView, CompositeStrategy, CrossSectionalStrategy, RegimeGated,
-    judge_grid, regime_breakdown, write_html,
+    RegimeSwitch, judge_grid, regime_breakdown, write_html,
 )
 from invest_system.timeseries import trend_regime, vol_regime  # noqa: E402
 from invest_system.validation.dsr import sharpe_ratio  # noqa: E402
@@ -55,7 +55,21 @@ from invest_system.validation.registry import (  # noqa: E402
 
 START, END, OOS = "2016-07", "2026-05", "2024-01"
 SCOPE = get_env("J_VPR_SCOPE", "value_pead_regime") or "value_pead_regime"
+SWITCH_SCOPE = get_env("J_VPR_SWITCH_SCOPE", "value_pead_switch") or "value_pead_switch"
 REG_PATH = get_env("J_VPR_REGISTRY", None)
+
+
+def _isoos(v) -> None:
+    """GridVerdict の各戦略を IS/OOS・pre/post-2020 の年率Sharpe で表示。"""
+    for r in v.results:
+        ls = v.series.get(r.name, pd.Series(dtype="float64")).dropna()
+        is_ = ls[ls.index < pd.Timestamp(OOS)]
+        oos = ls[ls.index >= pd.Timestamp(OOS)]
+        si = sharpe_ratio(is_) * np.sqrt(12) if is_.size >= 8 else np.nan
+        so = sharpe_ratio(oos) * np.sqrt(12) if oos.size >= 8 else np.nan
+        (_, pre), (_, post) = pre_post_sharpe(ls, "2020-01-01")
+        print(f"  {r.name:<34} 全SR={r.sr_ann:+.2f} DSR={r.dsr:.2f} | "
+              f"IS={si:+.2f} OOS={so:+.2f} | 前2020={pre:+.2f} 後={post:+.2f}")
 
 
 def _brk(name: str, series: pd.Series, trend_m: pd.Series, vol_m: pd.Series) -> None:
@@ -137,19 +151,32 @@ def main() -> int:
         if not s.empty:
             _brk(nm, s, trend_m, vol_m)
 
-    print(f"\n--- IS/OOS（保留 {OOS}〜・年率Sharpe）---")
-    for r in v.results:
-        ls = v.series.get(r.name, pd.Series(dtype="float64")).dropna()
-        is_ = ls[ls.index < pd.Timestamp(OOS)]
-        oos = ls[ls.index >= pd.Timestamp(OOS)]
-        si = sharpe_ratio(is_) * np.sqrt(12) if is_.size >= 8 else np.nan
-        so = sharpe_ratio(oos) * np.sqrt(12) if oos.size >= 8 else np.nan
-        (_, pre), (_, post) = pre_post_sharpe(ls, "2020-01-01")
-        print(f"  {r.name:<26} 全SR={r.sr_ann:+.2f} DSR={r.dsr:.2f} | "
-              f"IS={si:+.2f} OOS={so:+.2f} | 前2020={pre:+.2f} 後={post:+.2f}")
+    print(f"\n--- IS/OOS（gate・保留 {OOS}〜・年率Sharpe）---")
+    _isoos(v)
 
-    print("\n※ 判断：baseline で有利レジーム(r0/r1)>>不利(r2)＝分離があり、かつ gated の DSR/OOS が"
-          " baseline を上回って初めてレジームに価値（§6.8 規律）。分離が無ければ正直に負を記録。")
+    # === レジーム条件付き切替（§6.9 の逆ボラ依存を利用：平常=value, 混乱=PEAD）===
+    print(f"\n=== レジーム切替 value↔PEAD（別 scope={SWITCH_SCOPE}）===")
+    value_gate = RegimeGated(value_ls, vol_m, allowed={0, 1}, name="value|vol<=1")
+    pead_turb = RegimeGated(pead_lt, vol_m, allowed={2}, name="pead_lt|vol==2")
+    switch = RegimeSwitch(vol_m, {0: value_ls, 1: value_ls, 2: pead_lt},
+                          name="switch(value@vol<=1,pead@vol==2)")
+    reg_cm2 = TrialRegistry(REG_PATH) if REG_PATH else default_registry()
+    with reg_cm2 as reg2:
+        vs = judge_grid(
+            [value_ls, value_gate, pead_turb, switch], view, scope=SWITCH_SCOPE,
+            hypothesis=("value と PEAD はボラ依存が逆（value=平常・PEAD=混乱）。レジームで切替えれば"
+                        "value|vol<=1 が現金待機する高ボラ月を PEAD で埋め、被覆と耐久性が上がるか"),
+            economic_rationale=("高ボラ(flight-to-quality)で value は劣後するが予想改訂(PEAD)は不確実性下で"
+                                "情報価値が増し効く。相補スリーブの切替で通期 risk-adjusted を改善。"
+                                "注：割当は §6.9 の全期間 breakdown 由来＝in-sample 設計・OOS で要検証。"),
+            registry=reg2, costs_bps=15.0, adv=adv, participation=0.1)
+    print("\n" + vs.report_md)
+    print("HTML:", write_html(vs, f"data/reports/{vs.scope}.html"))
+    print(f"\n--- IS/OOS（switch・保留 {OOS}〜・年率Sharpe）---")
+    _isoos(vs)
+
+    print("\n※ 判断：switch が value|vol<=1（gate）より 全DSR・OOS・被覆で上回れば相補切替に価値。"
+          " ただし PEAD@高ボラ の割当は in-sample 由来＝真の OOS/将来データが最終判定（§6.8-6.9 規律）。")
     return 0
 
 

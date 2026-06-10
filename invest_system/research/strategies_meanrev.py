@@ -226,3 +226,33 @@ class RegimeGated(Strategy):
         if r not in self.allowed:                     # ハードゲート（allowed 外は flat）
             return pd.Series(dtype="float64")
         return w
+
+
+class RegimeSwitch(Strategy):
+    """レジームごとに異なる戦略へ切替える（柱C/D・PIT・RegimeGated の switch 版）。
+
+    mapping={レジームラベル: Strategy}。各 t で ≤t の最新レジームに対応する戦略のウェイトを
+    返す（mapping 外のレジーム/未確定は flat）。**相補的なスリーブ**（例：平常=value、混乱=PEAD）
+    を一本のジャッジ可能な戦略に束ねる＝`RegimeGated` の和集合では表しにくい「切替」を明示。
+    regime は PIT 系列（timeseries.regime・拡張窓三分位）。regime[t] は close[t] と同 as-of、執行は
+    execution_lag で翌足＝同足先読みなし。params に switch マップを載せ、判定器は別試行として K 計上
+    （KB §11.7）。注：mapping をデータ（regime_breakdown）で選んだ場合は in-sample 設計＝OOS で要検証。
+    """
+
+    def __init__(self, regime: pd.Series, mapping: dict, name: str | None = None):
+        if not mapping:
+            raise ValueError("mapping に少なくとも1つの {label: strategy} が必要です。")
+        self.regime = regime.sort_index()
+        self.mapping = {float(k): v for k, v in mapping.items()}
+        tag = ",".join(f"{int(k)}:{v.name}" for k, v in sorted(self.mapping.items()))
+        self.name = name or f"regime_switch({tag})"
+        self.params = {"switch": {int(k): v.name for k, v in self.mapping.items()}}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        hist = self.regime.loc[:asof.asof]            # ≤t の最新レジーム＝先読み無
+        if hist.empty or pd.isna(hist.iloc[-1]):
+            return pd.Series(dtype="float64")         # レジーム未確定＝建てない
+        strat = self.mapping.get(float(hist.iloc[-1]))
+        if strat is None:                             # マップ外レジーム＝flat
+            return pd.Series(dtype="float64")
+        return strat.target_weights(asof)

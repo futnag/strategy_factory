@@ -8,7 +8,9 @@
 import numpy as np
 import pandas as pd
 
-from invest_system.research import AsOf, RegimeGated, Strategy, regime_breakdown
+from invest_system.research import (
+    AsOf, RegimeGated, RegimeSwitch, Strategy, regime_breakdown,
+)
 from invest_system.timeseries.regime import (
     efficiency_ratio,
     equal_weight_market,
@@ -105,6 +107,26 @@ def test_regime_gated_unknown_and_empty_base():
     assert not g.target_weights(_asof(idx[3])).empty
     g2 = RegimeGated(_Const(pd.Series(dtype="float64")), regime, allowed={0})
     assert g2.target_weights(_asof(idx[3])).empty                # base 空はそのまま
+
+
+def test_regime_switch_routes_by_regime():
+    idx = pd.date_range("2024-01-01", periods=6, freq="B")
+    regime = pd.Series([0, 0, 2, 2, 1, 2], index=idx, dtype="float64")
+    a = _Const(pd.Series({"A": 1.0}))
+    b = _Const(pd.Series({"B": -1.0}))
+    sw = RegimeSwitch(regime, {0: a, 2: b})                      # regime1 は未マップ
+    assert sw.target_weights(_asof(idx[0]))["A"] == 1.0          # regime0→a
+    assert sw.target_weights(_asof(idx[2]))["B"] == -1.0         # regime2→b
+    assert sw.target_weights(_asof(idx[4])).empty               # regime1 未マップ→flat
+    assert sw.params["switch"] == {0: "const", 2: "const"}
+
+
+def test_regime_switch_unknown_is_flat():
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    regime = pd.Series([np.nan, 0, 0, 0], index=idx, dtype="float64")
+    sw = RegimeSwitch(regime, {0: _Const(pd.Series({"A": 1.0}))})
+    assert sw.target_weights(_asof(idx[0])).empty               # ≤t NaN→flat
+    assert not sw.target_weights(_asof(idx[2])).empty
 
 
 # --- regime_breakdown -------------------------------------------------------

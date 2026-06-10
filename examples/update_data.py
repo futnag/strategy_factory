@@ -3,10 +3,14 @@
 使い方:
   .venv\\Scripts\\python.exe examples\\update_data.py            # 今日まで最新化
   .venv\\Scripts\\python.exe examples\\update_data.py 2026-06-05  # 指定日まで
+  .venv\\Scripts\\python.exe examples\\update_data.py --no-materialize  # Raw のみ
 
 既存キャッシュ＋マニフェストから「取得済み日」を自動把握し、欠損日だけ取得する。
 祝日・未公表は空マーカーが残り再取得しない＝冪等・再開可能。Standard 推奨間隔
 J_QUANTS_MIN_INTERVAL=0.7。
+
+既定で Raw 更新後に Silver(wide) を**増分 materialize**する（load_daily_panel は
+Silver を優先して読むため、これを省くと検証・照合が古い Silver を見る）。
 """
 from __future__ import annotations
 
@@ -25,7 +29,10 @@ def main() -> int:
     if not get_env("J_QUANTS_API_KEY"):
         print("ERROR: .env に J_QUANTS_API_KEY が必要です。")
         return 1
-    until = sys.argv[1] if len(sys.argv) > 1 else None
+    argv = sys.argv[1:]
+    materialize = "--no-materialize" not in argv
+    pos = [a for a in argv if not a.startswith("--")]
+    until = pos[0] if pos else None
     up = DataUpdater()
     target = pd.Timestamp(until) if until else pd.Timestamp.today().normalize()
     print(f"=== 差分更新（〜{target:%Y-%m-%d}）===")
@@ -38,10 +45,13 @@ def main() -> int:
     if refresh:
         print(f"[計画] refresh（全体を最新化）: {refresh}")
     print("\n[実行]:")
-    rep = up.update(until=until)
-    fetched = sum(r.get("fetched", 0) for r in rep.values())
-    refreshed = sum(r.get("refreshed_rows", 0) for r in rep.values())
-    print(f"\n完了: by-date 新規 {fetched} 件 / refresh {refreshed:,} 行。ローカルは最新です。")
+    rep = up.update(until=until, materialize=materialize)
+    fetched = sum(r.get("fetched", 0) for r in rep.values()
+                  if isinstance(r, dict))
+    refreshed = sum(r.get("refreshed_rows", 0) for r in rep.values()
+                    if isinstance(r, dict))
+    print(f"\n完了: by-date 新規 {fetched} 件 / refresh {refreshed:,} 行"
+          f"{'（Silver materialize 済）' if materialize else ''}。ローカルは最新です。")
     return 0
 
 

@@ -12,9 +12,13 @@
   確定月＝次月リバランスの約定で手仕舞い評価、最新月＝直近終値でのマークトゥマーケット
   （「進行中」フラグ）。
 
-実行（毎月のリバランス約定後・週次監視でも可）:
+実行（毎月のリバランス約定後・週次/日次監視でも可）:
   .venv\\Scripts\\python.exe examples\\phase2_reconcile.py
-出力: コンソール＋ data/phase2/report_latest.md
+出力: コンソール＋ data/phase2/ の
+  report_latest.md   … 人間向けレポート（従来どおり）
+  status.json        … 機械可読サマリ（DD・キルスイッチ・データ鮮度＝ダッシュボード用）
+  months.csv         … 月次テーブル
+  equity_daily.csv   … 日次 equity curve（終値マーク補間・確定値は月次会計が正）
 """
 from __future__ import annotations
 
@@ -33,9 +37,11 @@ except Exception:  # noqa: BLE001
     pass
 
 from invest_system.data.external import load_external_prices  # noqa: E402
+from invest_system.data.external_fetch import PHASE2_KEYS  # noqa: E402
 from invest_system.equities.panel import load_daily_panel  # noqa: E402
 from invest_system.production import (  # noqa: E402
-    apply_actual_fills, drawdown_status, next_open_fills, yen_positions_pnl,
+    ALERT_DD, DERISK_DD, STOP_DD, apply_actual_fills, daily_pnl_curve,
+    drawdown_status, next_open_fills, yen_positions_pnl,
 )
 
 DIR = Path("data/phase2")
@@ -86,7 +92,7 @@ def main() -> int:
     ext_op = load_external_prices(field="open")
     ext_cl = load_external_prices(field="close")
 
-    rows, slips = [], []
+    rows, slips, pos_months = [], [], []
     prev_eq_yen: pd.Series | None = None
     prev_ts_yen: pd.Series | None = None
     for i, tag in enumerate(months):
@@ -130,10 +136,14 @@ def main() -> int:
                 .reindex(ts_notional.index)
             status, val_date = "確定", pd.Timestamp(man2["decision_eq"])
         else:
+            # 進行中：全資産を**同一日**（JP 最新営業日）で as-of 評価する。
+            # 外部系列だけ先の日付で評価するとヘッジ・TSMOM に見かけの損益が出る。
+            val_date = cl_adj.index[-1]
             adj1 = cl_adj.iloc[-1].reindex(invested.index)
-            fut1 = float(ext_cl["nk225_fut"].dropna().iloc[-1])
-            ts1 = ext_cl.iloc[-1].reindex(ts_notional.index)
-            status, val_date = "進行中", cl_adj.index[-1]
+            ext_asof = ext_cl.asof(val_date)
+            fut1 = float(ext_asof["nk225_fut"])
+            ts1 = ext_asof.reindex(ts_notional.index)
+            status = "進行中"
 
         rel_eq = adj1 / adj0.replace(0, np.nan) - 1.0
         pnl_stocks = yen_positions_pnl(invested, rel_eq)
@@ -168,6 +178,17 @@ def main() -> int:
             "unfilled_names": unfilled, "hedge_yen": hedge_notional,
             "ts_live_gap_yen": live_gap,
         })
+        pos_months.append({
+            "tag": tag, "d_eq": d_eq, "cap_eq": cap_eq, "cap_ts": cap_ts,
+            "invested": invested, "adj0": adj0,
+            "fill_dates_eq": f_eq.set_index("key")["fill_date"],
+            "hedge_notional": hedge_notional, "fut0": fut0,
+            "fut_date": f_fut["fill_date"].iloc[0],
+            "ts_notional": ts_notional, "ts0": ts0,
+            "fill_dates_ts": f_ts.set_index("key")["fill_date"],
+            "cost_frac": cost / (cap_eq + cap_ts),
+            "ret_eq": ret_eq, "ret_ts": ret_ts, "combo_net": combo_net,
+        })
 
     df = pd.DataFrame(rows).set_index("month")
     net = pd.Series(df["combo_net"].values,
@@ -196,7 +217,62 @@ def main() -> int:
     report = "\n".join(lines)
     (DIR / "report_latest.md").write_text(report, encoding="utf-8")
     print(report)
-    print(f"\n出力: {DIR / 'report_latest.md'}")
+
+    # --- 機械可読出力（ダッシュボード/監視用）---
+    # 日次 equity curve：月内は終値マークで補間し、月境界は月次会計値で連鎖する。
+    daily = []
+    chain = chain_eq = chain_ts = 1.0
+    for j, P in enumerate(pos_months):
+        end = (pos_months[j + 1]["d_eq"] if j + 1 < len(pos_months)
+               else cl_adj.index[-1])
+        win = cl_adj.index[(cl_adj.index > P["d_eq"]) & (cl_adj.index <= end)]
+        if len(win):
+            pnl_eq = daily_pnl_curve(P["invested"], P["adj0"], cl_adj, win,
+                                     P["fill_dates_eq"])
+            pnl_eq = pnl_eq + daily_pnl_curve(
+                pd.Series({"nk225_fut": P["hedge_notional"]}),
+                pd.Series({"nk225_fut": P["fut0"]}), ext_cl, win,
+                pd.Series({"nk225_fut": P["fut_date"]}))
+            pnl_ts = daily_pnl_curve(P["ts_notional"], P["ts0"], ext_cl, win,
+                                     P["fill_dates_ts"])
+            cap = P["cap_eq"] + P["cap_ts"]
+            for d in win:
+                daily.append({
+                    "date": d,
+                    "eq": chain_eq * (1 + pnl_eq[d] / P["cap_eq"]),
+                    "ts": chain_ts * (1 + pnl_ts[d] / P["cap_ts"]),
+                    "combo_net": chain * (1 + (pnl_eq[d] + pnl_ts[d]) / cap
+                                          - P["cost_frac"]),
+                })
+        chain *= 1 + P["combo_net"]
+        chain_eq *= 1 + P["ret_eq"]
+        chain_ts *= 1 + P["ret_ts"]
+    anchor = pd.DataFrame([{"date": pos_months[0]["d_eq"], "eq": 1.0, "ts": 1.0,
+                            "combo_net": 1.0}])
+    daily_df = pd.concat([anchor, pd.DataFrame(daily)],
+                         ignore_index=True).set_index("date")
+    daily_df.to_csv(DIR / "equity_daily.csv")
+
+    df.reset_index().to_csv(DIR / "months.csv", index=False)
+    fresh_ext = {k: (f"{ext_cl[k].dropna().index.max():%Y-%m-%d}"
+                     if k in ext_cl.columns and ext_cl[k].notna().any() else None)
+                 for k in PHASE2_KEYS}
+    status = {
+        "generated_at": f"{pd.Timestamp.now():%Y-%m-%d %H:%M}",
+        "asof": str(df["val_date"].iloc[-1]),
+        "latest_month": months[-1], "latest_status": str(df["status"].iloc[-1]),
+        "n_months": int(len(df)), "cum_net": cum, "cur_dd": cur_dd, "kill": kill,
+        "thresholds": {"alert": ALERT_DD, "derisk": DERISK_DD, "stop": STOP_DD},
+        "slip_mean_bp": (float(slip_all.mean() * 1e4) if len(slip_all) else None),
+        "slip_n": int(len(slip_all)),
+        "plan_band": "年率 OOS +0.45〜+0.82（判定には12ヶ月以上の蓄積が必要）",
+        "freshness": {"jq_daily": f"{cl_adj.index[-1]:%Y-%m-%d}", **fresh_ext},
+        "capital": {"eq": float(man["capital_eq"]), "ts": float(man["capital_ts"])},
+    }
+    (DIR / "status.json").write_text(
+        json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\n出力: {DIR / 'report_latest.md'} / status.json / months.csv / "
+          f"equity_daily.csv（{len(daily_df)}日分）")
     return 0
 
 

@@ -6,8 +6,8 @@
 """
 
 from .ledger import (
-    ALERT_DD, DERISK_DD, STOP_DD, apply_actual_fills, drawdown_status,
-    next_open_fills, yen_positions_pnl,
+    ALERT_DD, DERISK_DD, STOP_DD, apply_actual_fills, daily_pnl_curve,
+    drawdown_status, next_open_fills, yen_positions_pnl,
 )
 from .orders import equity_orders, hedge_contracts, lot_orders
 
@@ -16,6 +16,7 @@ __all__ = [
     "DERISK_DD",
     "STOP_DD",
     "apply_actual_fills",
+    "daily_pnl_curve",
     "drawdown_status",
     "equity_orders",
     "hedge_contracts",

@@ -15,6 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 live = ["ccxt>=4.0"]
+ops = ["psycopg[binary]>=3.1", "yfinance>=0.2"]  # Phase 2 無人運用（Actions/同期）
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

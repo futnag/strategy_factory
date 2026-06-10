@@ -77,6 +77,41 @@ def drawdown_status(returns: pd.Series) -> tuple[pd.Series, float, str]:
     return dd, cur, status
 
 
+def daily_pnl_curve(notional: pd.Series, entry_px: pd.Series,
+                    px_panel: pd.DataFrame, dates: pd.DatetimeIndex,
+                    entry_dates: pd.Series | None = None) -> pd.Series:
+    """円建てポジションの日次評価損益（円）系列＝可視化用マークトゥマーケット。
+
+    各 key の損益_t = notional × (P_t / P_0 − 1)。P_t は dates 上に ffill
+    （過去値のみ＝先読みなし）。entry_dates があれば各 key の約定日より**前**は
+    寄与 0（未約定期間）。欠損 key・価格は寄与 0（yen_positions_pnl と同じ保守処理）。
+
+    月次の確定数値は next_open_fills ベースの月次会計が正。本関数はその間を
+    終値マークで補間する**可視化用**であり、月末値は出口始値評価と微小に異なる。
+    """
+    out = pd.Series(0.0, index=dates)
+    if notional.empty or not len(dates):
+        return out
+    cols = [k for k in notional.index if k in px_panel.columns]
+    if not cols:
+        return out
+    px = (px_panel[cols]
+          .reindex(index=dates.union(px_panel.index)).sort_index()
+          .ffill().reindex(dates))
+    for k in cols:
+        p0 = entry_px.get(k, np.nan)
+        if not np.isfinite(p0) or p0 == 0:
+            continue
+        rel = px[k] / float(p0) - 1.0
+        if entry_dates is not None:
+            ed = entry_dates.get(k, pd.NaT)
+            if pd.isna(ed):
+                continue                       # 未約定＝寄与なし
+            rel = rel.where(rel.index >= pd.Timestamp(ed), 0.0)
+        out = out.add(float(notional.get(k, 0.0)) * rel.fillna(0.0), fill_value=0.0)
+    return out
+
+
 def apply_actual_fills(fills: pd.DataFrame, actual: pd.DataFrame | None
                        ) -> tuple[pd.DataFrame, pd.Series]:
     """実約定 CSV（key, fill_price[, fill_date]）でペーパー約定を上書きし、

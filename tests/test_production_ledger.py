@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 
 from invest_system.production import (
-    apply_actual_fills, drawdown_status, next_open_fills, yen_positions_pnl,
+    apply_actual_fills, daily_pnl_curve, drawdown_status, next_open_fills,
+    yen_positions_pnl,
 )
 
 
@@ -59,6 +60,31 @@ def test_drawdown_counts_from_initial_capital():
     _, cur, st = drawdown_status(pd.Series([-0.05, -0.05], index=idx))
     assert cur == pytest.approx(0.95 * 0.95 - 1.0)         # −9.75%
     assert "ALERT" in st
+
+
+def test_daily_pnl_curve_long_short_and_entry_mask():
+    idx = pd.date_range("2026-06-01", periods=4, freq="B")
+    px = pd.DataFrame({"A": [100.0, 102.0, 101.0, 104.0],
+                       "F": [50.0, 49.0, 50.5, 51.0]}, index=idx)
+    notional = pd.Series({"A": 100_000.0, "F": -50_000.0})
+    entry = pd.Series({"A": 100.0, "F": 50.0})
+    pnl = daily_pnl_curve(notional, entry, px, idx)
+    assert pnl.iloc[0] == pytest.approx(0.0 + (-50_000) * 0.0)
+    assert pnl.iloc[1] == pytest.approx(100_000 * 0.02 - 50_000 * (-0.02))
+    # 約定日マスク：A は3日目から（それ以前は寄与 0）
+    pnl2 = daily_pnl_curve(notional, entry, px, idx,
+                           entry_dates=pd.Series({"A": idx[2], "F": idx[0]}))
+    assert pnl2.iloc[1] == pytest.approx(-50_000 * (-0.02))    # A 未約定期間
+    assert pnl2.iloc[3] == pytest.approx(100_000 * 0.04 - 50_000 * 0.02)
+
+
+def test_daily_pnl_curve_ffills_gaps_and_skips_unknown():
+    idx = pd.date_range("2026-06-01", periods=3, freq="B")
+    px = pd.DataFrame({"A": [100.0, np.nan, 110.0]}, index=idx)
+    pnl = daily_pnl_curve(pd.Series({"A": 10_000.0, "Z": 5_000.0}),
+                          pd.Series({"A": 100.0, "Z": 1.0}), px, idx)
+    assert pnl.iloc[1] == pytest.approx(0.0)                   # 欠損日は前日値で評価
+    assert pnl.iloc[2] == pytest.approx(1_000.0)               # Z（不明キー）は寄与 0
 
 
 def test_apply_actual_fills_overrides_and_slippage():

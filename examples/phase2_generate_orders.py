@@ -127,6 +127,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Phase 2 注文生成（ペーパー/実弾共通）")
     ap.add_argument("--capital-eq", type=float, default=600_000)
     ap.add_argument("--capital-ts", type=float, default=300_000)
+    ap.add_argument("--skip-existing", action="store_true",
+                    help="同月の manifest が既にあれば何も書かない（無人運用＝発注済み"
+                         "記録の凍結。データ改定があっても過去の意図を上書きしない）")
     args = ap.parse_args()
     if not get_env("J_QUANTS_API_KEY"):
         print("ERROR: .env に J_QUANTS_API_KEY が必要です。")
@@ -161,6 +164,10 @@ def main() -> int:
 
     # --- 出力 ---
     tag = f"{t_eq:%Y-%m}"
+    if args.skip_existing and (OUT_DIR / f"manifest_{tag}.json").exists():
+        print(f"\n既存の manifest_{tag}.json を検出 → 出力せず終了（--skip-existing・"
+              "発注済み記録は凍結）")
+        return 0
     f_eq = OUT_DIR / f"orders_eq_{tag}.csv"
     f_ts = OUT_DIR / f"orders_ts_{tag}.csv"
     f_int = OUT_DIR / f"intended_{tag}.parquet"

@@ -116,15 +116,24 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
   ＋`CointegratedPairs` で、取得済み日足ミラー＋業種マスタから業種内ペアを CADF ゲート→全候補を試行計上
   →DSR デフレート（`examples/research_meanrev_pairs.py`・[`docs/03`§6.6]）。
 
-## Phase 2（実運用配管・ペーパー運用中）
+## Phase 2（実運用配管・ペーパー運用中＝**毎晩自動実行**）
 
 確定ポートフォリオ（value↔PEAD switch ＋ TSMOM オーバーレイ、[`docs/03`§6.16]）の
-月次運用ループ（前提・頻度・キルスイッチは [`docs/02`D5]）：
+月次運用ループ（前提・頻度・キルスイッチ・自動化仕様は [`docs/02`D5]）。
+
+**通常運用は無人**：毎晩 21:30 JST に GitHub Actions（private リポジトリ
+`strategy-factory-ops`）が「データ更新（J-Quants 差分＋外部価格の検証付き追記
+`examples/update_external.py`）→ 月末なら注文生成（`--skip-existing`＝凍結記録）→
+ステートレス照合 → Supabase 同期 → ダッシュボード自動デプロイ（Vercel・パスワード認証・
+URL は ops リポジトリ参照）」を実行し、キルスイッチ発動・失敗時は Issue 起票で通知する。
+
+ローカルでも同じループを手動実行できる（出力は `data/phase2/`、
+`phase2_push_supabase.py --pull/--push` でクラウド状態と同期）：
 
 ```powershell
 # 月末の夜：シグナル生成（注文CSV・intended・manifest を data/phase2/ へ）
 $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\phase2_generate_orders.py
-# 週次/月次：照合（T+1始値で約定再構成→DD・キルスイッチ・計画帯レポート）
+# 照合（T+1始値で約定再構成→DD・キルスイッチ・計画帯レポート＋status.json/日次カーブ）
 $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\phase2_reconcile.py
 ```
 

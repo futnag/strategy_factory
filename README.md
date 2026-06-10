@@ -101,7 +101,9 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
 - **代表的な検証スクリプト**：`research_value_pead_longtilt.py`（最有力候補 value＋ロングティルトPEAD）、
   `research_breadth_factors.py`（value×momentum×quality×low-vol の多ファクター breadth）、
   `research_value_pead_realism.py`（執行現実性チェック＝値幅制限・貸株コスト・ケリー、[`docs/03`§6.12]）、
-  `research_value_pead_timing.py`（執行タイミング＝T+1始値・ボラ連動スリッページ、[`docs/03`§6.13]）。
+  `research_value_pead_timing.py`（執行タイミング＝T+1始値・ボラ連動スリッページ、[`docs/03`§6.13]）、
+  `research_index_events.py`（日経225入替イベント＝検証済み発表日付きイベント表
+  `equities/index_events.py` で裁定、[`docs/03`§6.14]）。
 - 全ユニバースの財務 as-of は `equities/fundamentals.py` の `fundamentals_panel()`／`load_fundamentals()`
   （全件ミラーを先読みなしで組立）。ファクターは `equities/factors.py`（value/quality/size/momentum/
   配当利回り/低ボラ/アクルーアル）。

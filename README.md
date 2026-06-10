@@ -116,6 +116,21 @@ $env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\end_to_end_demo.py
   ＋`CointegratedPairs` で、取得済み日足ミラー＋業種マスタから業種内ペアを CADF ゲート→全候補を試行計上
   →DSR デフレート（`examples/research_meanrev_pairs.py`・[`docs/03`§6.6]）。
 
+## Phase 2（実運用配管・ペーパー運用中）
+
+確定ポートフォリオ（value↔PEAD switch ＋ TSMOM オーバーレイ、[`docs/03`§6.16]）の
+月次運用ループ（前提・頻度・キルスイッチは [`docs/02`D5]）：
+
+```powershell
+# 月末の夜：シグナル生成（注文CSV・intended・manifest を data/phase2/ へ）
+$env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\phase2_generate_orders.py
+# 週次/月次：照合（T+1始値で約定再構成→DD・キルスイッチ・計画帯レポート）
+$env:PYTHONUTF8 = "1"; .\.venv\Scripts\python.exe examples\phase2_reconcile.py
+```
+
+実弾移行後は `data/phase2/fills_actual_<月>.csv`（sleeve,key,fill_price）を置くと
+実約定が優先され、ペーパーとの差が実測スリッページとして月次レポートに載る。
+
 ## コマンド対応表（PowerShell ↔ bash）
 
 | 操作 | Windows (PowerShell) | Linux / macOS (bash) |

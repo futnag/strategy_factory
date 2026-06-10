@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -182,7 +183,16 @@ def main() -> int:
                       "weight": w_ts.values, "asof": t_ts}),
     ], ignore_index=True)
     intended.to_parquet(f_int)
-    print(f"\n出力: {f_eq}\n      {f_ts}\n      {f_int}")
+    manifest = {"month": tag, "capital_eq": args.capital_eq,
+                "capital_ts": args.capital_ts,
+                "decision_eq": f"{t_eq:%Y-%m-%d}", "decision_ts": f"{t_ts:%Y-%m-%d}",
+                "regime_vol": regime, "hedge_contracts": n_hedge,
+                "hedge_yen": hedge_yen, "short_notional": short_notional,
+                "long_yen": long_yen}
+    f_man = OUT_DIR / f"manifest_{tag}.json"
+    f_man.write_text(json.dumps(manifest, ensure_ascii=False, indent=2),
+                     encoding="utf-8")
+    print(f"\n出力: {f_eq}\n      {f_ts}\n      {f_int}\n      {f_man}")
     print("\n※ 執行規約（D5/DP17）：このリストは決定日の翌営業日**寄付**で約定させる"
           "（かぶミニ寄付取引・先物は寄成）。ペーパーでは翌営業日始値を約定価格として"
           "台帳に記録する（バックログ2の照合スクリプトが intended と突き合わせる）。")

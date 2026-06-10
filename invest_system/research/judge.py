@@ -72,6 +72,36 @@ def regime_breakdown(returns: pd.Series, regime: pd.Series,
     return pd.DataFrame(rows, columns=["regime", "n", "mean", "sharpe_ann"])
 
 
+def walk_forward_regime_assignment(sleeve_returns: dict, regime: pd.Series,
+                                   min_obs: int = 6, warmup: int = 24) -> pd.Series:
+    """各 t で『過去(s<t)の同一レジーム実績が最良の sleeve』を因果的に割当（walk-forward）。
+
+    §6.10 の静的 switch は割当を全期間 breakdown（OOS 含む）から選んだ＝in-sample 設計。本関数は
+    **各時点で過去のみから割当を学習**し、その懸念を排除する。sleeve_returns={name: 月次ネット系列}
+    （return[s] は s→s+1 実現＝s+1 時点で既知）。各 t で regime[t]=r とし、s<t かつ regime[s]==r の各
+    sleeve の平均リターンを比較、**最大かつ正**の sleeve 名を割当（同一レジームの過去が min_obs 未満、
+    または全て非正なら NaN=現金）。先頭 warmup 本は NaN（初期推定）。返り値 index=regime.index、値=
+    選択 sleeve 名 or NaN。**未来を一切参照しない**（s<t のみ）＝真の walk-forward 追跡を可能にする。
+    """
+    names = list(sleeve_returns)
+    R = pd.DataFrame(sleeve_returns).reindex(regime.index)
+    out = pd.Series(index=regime.index, dtype="object")
+    rv = regime.to_numpy()
+    for i in range(len(regime)):
+        if i < warmup or pd.isna(rv[i]):
+            continue
+        past = regime.index[:i][rv[:i] == rv[i]]        # s<t かつ regime[s]==regime[t]
+        best, best_mu = None, 0.0                       # 正のみ採用（>0）
+        for nm in names:
+            seg = R[nm].reindex(past).dropna()
+            if len(seg) >= min_obs:
+                mu = float(seg.mean())
+                if mu > best_mu:
+                    best, best_mu = nm, mu
+        out.iloc[i] = best                              # None のままなら NaN（現金）
+    return out
+
+
 def _maxdd(r: pd.Series) -> float:
     cum = (1.0 + r).cumprod()
     return float((cum / cum.cummax() - 1.0).min())

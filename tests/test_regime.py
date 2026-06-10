@@ -10,6 +10,7 @@ import pandas as pd
 
 from invest_system.research import (
     AsOf, RegimeGated, RegimeSwitch, Strategy, regime_breakdown,
+    walk_forward_regime_assignment,
 )
 from invest_system.timeseries.regime import (
     efficiency_ratio,
@@ -141,3 +142,30 @@ def test_regime_breakdown_separates():
     s0 = float(bd[bd["regime"] == 0.0]["sharpe_ann"].iloc[0])
     s2 = float(bd[bd["regime"] == 2.0]["sharpe_ann"].iloc[0])
     assert s0 > s2                                               # レジーム0が突出
+
+
+# --- walk_forward_regime_assignment -----------------------------------------
+def test_walk_forward_assignment_picks_past_best_and_is_pit():
+    idx = pd.date_range("2020-01-31", periods=60, freq="ME")
+    rng = np.random.default_rng(0)
+    regime = pd.Series(np.tile([0.0, 1.0], 30), index=idx)       # 交互に 0,1
+    a = pd.Series(np.where(regime.values == 0, 0.02, -0.02)      # A: r0で+ r1で−
+                  + rng.normal(0, 1e-4, 60), index=idx)
+    b = pd.Series(np.where(regime.values == 1, 0.02, -0.02)      # B: 逆
+                  + rng.normal(0, 1e-4, 60), index=idx)
+    asg = walk_forward_regime_assignment({"A": a, "B": b}, regime, min_obs=4, warmup=10)
+    late, r_late = asg.iloc[10:], regime.iloc[10:]
+    assert (late[r_late == 0] == "A").all()                      # 過去ベスト＝r0→A
+    assert (late[r_late == 1] == "B").all()                      # r1→B
+    assert asg.iloc[:10].isna().all()                            # warmup は現金
+    a2 = a.copy(); a2.iloc[41:] *= -5.0                          # 未来(s>40)を改変
+    asg2 = walk_forward_regime_assignment({"A": a2, "B": b}, regime, min_obs=4, warmup=10)
+    pd.testing.assert_series_equal(asg.iloc[:41], asg2.iloc[:41])  # ≤40 の割当は不変=PIT
+
+
+def test_walk_forward_cash_when_all_nonpositive():
+    idx = pd.date_range("2020-01-31", periods=40, freq="ME")
+    regime = pd.Series(np.zeros(40), index=idx)                  # 単一レジーム
+    a = pd.Series(-0.01, index=idx)                             # 常に負
+    asg = walk_forward_regime_assignment({"A": a}, regime, min_obs=4, warmup=8)
+    assert asg.iloc[8:].isna().all()                            # 正の sleeve 無し→現金

@@ -45,7 +45,8 @@ from invest_system.equities.factors import (  # noqa: E402
 from invest_system.equities.stability import pre_post_sharpe  # noqa: E402
 from invest_system.research import (  # noqa: E402
     AsOfView, CompositeStrategy, CrossSectionalStrategy, RegimeGated,
-    RegimeSwitch, judge_grid, regime_breakdown, write_html,
+    RegimeSwitch, Strategy, judge_grid, regime_breakdown, walk_forward_regime_assignment,
+    write_html,
 )
 from invest_system.timeseries import trend_regime, vol_regime  # noqa: E402
 from invest_system.validation.dsr import sharpe_ratio  # noqa: E402
@@ -56,7 +57,22 @@ from invest_system.validation.registry import (  # noqa: E402
 START, END, OOS = "2016-07", "2026-05", "2024-01"
 SCOPE = get_env("J_VPR_SCOPE", "value_pead_regime") or "value_pead_regime"
 SWITCH_SCOPE = get_env("J_VPR_SWITCH_SCOPE", "value_pead_switch") or "value_pead_switch"
+WF_SCOPE = get_env("J_VPR_WF_SCOPE", "value_pead_wfswitch") or "value_pead_wfswitch"
+WF_WARMUP = int(get_env("J_VPR_WF_WARMUP", "24") or "24")     # 初期推定に充てる月数
+WF_MINOBS = int(get_env("J_VPR_WF_MINOBS", "6") or "6")       # 同一レジームの過去最小本数
 REG_PATH = get_env("J_VPR_REGISTRY", None)
+
+
+class _Replay(Strategy):
+    """事前計算した月次ウェイト（PIT生成済み）を date 引きで返す（適応切替の判定用）。"""
+
+    def __init__(self, weights: dict, name: str, params: dict):
+        self._w = weights
+        self.name = name
+        self.params = params
+
+    def target_weights(self, asof):
+        return self._w.get(asof.asof, pd.Series(dtype="float64"))
 
 
 def _isoos(v) -> None:
@@ -175,8 +191,42 @@ def main() -> int:
     print(f"\n--- IS/OOS（switch・保留 {OOS}〜・年率Sharpe）---")
     _isoos(vs)
 
-    print("\n※ 判断：switch が value|vol<=1（gate）より 全DSR・OOS・被覆で上回れば相補切替に価値。"
-          " ただし PEAD@高ボラ の割当は in-sample 由来＝真の OOS/将来データが最終判定（§6.8-6.9 規律）。")
+    # === walk-forward 適応切替（割当を各時点で過去のみから学習＝in-sample 設計を排除）===
+    print(f"\n=== walk-forward 適応切替（別 scope={WF_SCOPE}・warmup{WF_WARMUP}・min_obs{WF_MINOBS}）===")
+    Wv = {t: value_ls.target_weights(view.asof(t)) for t in rebal}   # sleeve 月次ウェイト
+    Wp = {t: pead_lt.target_weights(view.asof(t)) for t in rebal}
+    Rv, Rp = v.series.get("value"), v.series.get("pead_longtilt")    # sleeve 月次ネット
+    assign = walk_forward_regime_assignment({"value": Rv, "pead_longtilt": Rp}, vol_m,
+                                            min_obs=WF_MINOBS, warmup=WF_WARMUP)
+    Wmap = {"value": Wv, "pead_longtilt": Wp}
+    AW = {t: (Wmap[assign.get(t)][t] if isinstance(assign.get(t), str)
+              else pd.Series(dtype="float64")) for t in rebal}
+    wf = _Replay(AW, name="wf_switch(value/pead@vol,past-learned)",
+                 params={"rule": "argmax_past_mean_per_regime", "regime": "vol_tertile",
+                         "min_obs": WF_MINOBS, "warmup": WF_WARMUP})
+    wf_dates = rebal[WF_WARMUP:]                                     # 有効区間のみ判定
+    static_map = {0.0: "value", 1.0: "value", 2.0: "pead_longtilt"}  # §6.10 の静的割当
+    agree = np.mean([assign.get(t) == static_map.get(vol_m.get(t))
+                     for t in wf_dates if pd.notna(vol_m.get(t))])
+    cash = np.mean([not isinstance(assign.get(t), str) for t in wf_dates])
+    reg_cm3 = TrialRegistry(REG_PATH) if REG_PATH else default_registry()
+    with reg_cm3 as reg3:
+        vw = judge_grid(
+            [value_ls, value_gate, switch, wf], view, scope=WF_SCOPE, rebalance=wf_dates,
+            hypothesis=("§6.10 の静的 switch の割当を各時点で過去のみから学習する walk-forward に置換しても"
+                        "（in-sample 設計を排除しても）DSR/OOS が維持されるか＝エッジが本物か過学習か"),
+            economic_rationale=("レジーム別に過去実績が最良の sleeve を因果的に選ぶ。value↔平常/PEAD↔混乱が"
+                                "安定なら過去から再発見でき、walk-forward でも switch と同等＝過学習でない証拠。"),
+            registry=reg3, costs_bps=15.0, adv=adv, participation=0.1)
+    print("\n" + vw.report_md)
+    print("HTML:", write_html(vw, f"data/reports/{vw.scope}.html"))
+    print(f"\n--- IS/OOS（walk-forward・保留 {OOS}〜・年率Sharpe）---")
+    _isoos(vw)
+    print(f"\n  walk-forward 割当が §6.10 静的割当と一致した割合: {agree:.0%}"
+          f"（高いほどパターンが安定・過去から学習可能）／現金月: {cash:.0%}")
+
+    print("\n※ 最終判定：wf_switch が switch（静的・in-sample）と同等の DSR/OOS を保てば、割当は過去から"
+          " 学習可能＝エッジは過学習でない。崩れれば静的 switch は in-sample 産物。真の将来検証は 2026-05 以降。")
     return 0
 
 

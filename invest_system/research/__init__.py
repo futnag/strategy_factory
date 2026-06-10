@@ -9,7 +9,10 @@
 
 from .data_view import AsOf, AsOfView
 from .engine import BacktestResult, backtest
-from .judge import GridVerdict, StrategyVerdict, judge_grid, regime_breakdown
+from .judge import (
+    GridVerdict, StrategyVerdict, judge_grid, regime_breakdown,
+    walk_forward_regime_assignment,
+)
 from .report_html import to_html, write_html
 from .strategies_meanrev import (
     CointegratedPairs, JohansenBasket, LinearMeanReversion, RegimeGated,
@@ -40,6 +43,7 @@ __all__ = [
     "BacktestResult",
     "judge_grid",
     "regime_breakdown",
+    "walk_forward_regime_assignment",
     "GridVerdict",
     "StrategyVerdict",
     "to_html",

@@ -265,6 +265,24 @@ def test_accruals_quality_sign_in_bundle():
     assert out["accruals"].loc[idx[0], "200"] == pytest.approx(-0.4)
 
 
+def test_negative_shares_yield_nan_not_sign_flip():
+    # 片側欠損（ShOutFY 無し×TrShFY 有り）で株数が負→時価総額の符号反転を防ぐ。
+    idx = [pd.Timestamp("2024-01-31")]
+
+    def one(a, b):
+        return pd.DataFrame({"100": [a], "200": [b]}, index=idx)
+
+    raw = one(1000.0, 1000.0)
+    mc = market_cap(raw, one(np.nan, 10.0), treasury=one(2.0, 1.0))
+    assert np.isnan(mc.loc[idx[0], "100"])
+    assert mc.loc[idx[0], "200"] == pytest.approx(9000.0)
+    pit = {"ShOutFY": one(np.nan, 10.0), "TrShFY": one(2.0, 1.0),
+           "Eq": one(5.0, 5.0)}
+    out = value_quality_size_factors(pit, raw)
+    assert np.isnan(out["book_to_market"].loc[idx[0], "100"])  # 負のB/Mに化けない
+    assert out["book_to_market"].loc[idx[0], "200"] > 0
+
+
 def test_long_short_returns_no_lookahead_on_delisting():
     # 「翌期リターンが存在するか」を選定に使わない（生存者バイアス排除）。
     # E はファクター最上位だが翌期に退出（fwd NaN）→ ロングに選ばれ寄与は 0。

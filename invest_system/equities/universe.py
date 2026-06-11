@@ -31,6 +31,10 @@ def select_universe(listed: pd.DataFrame, turnover_panel: pd.DataFrame,
     listed         : /equities/master（Code, Mkt, S33 ...）
     turnover_panel : index=リバランス日, columns=Code, 値=売買代金(Va) の wide
     min_obs        : 必要な非NULL観測月数（流動性の継続性を担保）
+
+    注意：**全期間**の売買代金中央値を使う＝先読みを含む固定ユニバース（探索・
+    データ確認用）。バックテストの検証には point_in_time_universe（各時点 ≤t の
+    流動性のみで判定・生存者バイアス無し）を使うこと。
     """
     common = set(filter_common_stocks(listed)["Code"].astype(str))
     cols = [c for c in turnover_panel.columns if str(c) in common]

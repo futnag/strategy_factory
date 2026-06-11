@@ -15,11 +15,15 @@ import pandas as pd
 
 def market_cap(raw_price: pd.DataFrame, shares_out: pd.DataFrame,
                treasury: pd.DataFrame | None = None) -> pd.DataFrame:
-    """時価総額 = 生株価 × (発行済株式数 − 自己株式数)。ラベルで自動整合。"""
+    """時価総額 = 生株価 × (発行済株式数 − 自己株式数)。ラベルで自動整合。
+
+    片側欠損（発行済 NaN × 自己株あり）は fill_value=0 で株数が負になり時価総額の
+    符号が反転するため、株数 ≤0 は NaN（後段の z 化で自然に除外）。
+    """
     sh = shares_out
     if treasury is not None:
         sh = shares_out.sub(treasury, fill_value=0.0)
-    return raw_price * sh
+    return raw_price * sh.where(sh > 0)
 
 
 def value_quality_size_factors(pit: dict[str, pd.DataFrame], raw_price: pd.DataFrame,
@@ -35,6 +39,7 @@ def value_quality_size_factors(pit: dict[str, pd.DataFrame], raw_price: pd.DataF
         return pit.get(name, pd.DataFrame(index=raw_price.index))
 
     shares = f("ShOutFY").sub(f("TrShFY"), fill_value=0.0)
+    shares = shares.where(shares > 0)        # 片側欠損で負になる開示は NaN（market_cap と同じ）
     mcap = raw_price * shares
 
     out: dict[str, pd.DataFrame] = {}

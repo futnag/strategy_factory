@@ -77,14 +77,17 @@ def _refresh_investor_types(start: str, until: str) -> int:
 
 
 def _index_codes() -> list[str]:
-    """キャッシュ済み指数コード（無ければ直近日付の一覧から）。"""
+    """キャッシュ済み指数コード（無ければ直近営業日の一覧から）。"""
     d = jq._CACHE / "indices"
     codes = [p.stem.split("_", 1)[1] for p in d.glob("code_*.parquet")] \
         if d.exists() else []
     if not codes:
-        snap = jq.fetch_index_bars(date="20260529")
-        if "Code" in snap.columns:
-            codes = [str(x) for x in snap["Code"].dropna().unique()]
+        # 直近の平日を新しい順に試す（固定日付は鮮度切れ・祝日で壊れる）
+        for day in pd.bdate_range(end=pd.Timestamp.today(), periods=10)[::-1]:
+            snap = jq.fetch_index_bars(date=day.strftime("%Y%m%d"))
+            if "Code" in snap.columns and snap["Code"].notna().any():
+                codes = [str(x) for x in snap["Code"].dropna().unique()]
+                break
     return sorted(set(codes))
 
 

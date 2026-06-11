@@ -165,7 +165,7 @@
 - 本リポジトリとの関係: §6.7 で「日本はモメンタム単独が負」を自前実証済みだが、**残差化という単純な変換で蘇るかは未検証の genuine question**。momentum_12_1 特徴量は既存・残差化は numpy で軽量。複数の独立査読済み証拠が事前確率を押し上げる。→ 04 P3-H として事前登録。
 
 ### L2. 日本株の無料データソース(P1-A 外部突合の最短経路)
-- **Kenneth French Data Library 日本ファクター**: Fama/French Japanese 3 Factors・Japanese Momentum Factor の月次系列が無料・CSV 直ダウンロード(mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html)。**WRDS 不要**で K2(Global Factor Data)より入手障壁が低い。自前 value ファクターとの符号・相関突合の第一候補。
+- **Kenneth French Data Library 日本ファクター**: Fama/French Japanese 3 Factors・Japanese Momentum Factor の月次系列が無料・CSV 直ダウンロード(mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html)。**WRDS 不要**で K2(Global Factor Data)より入手障壁が低い。自前 value ファクターとの符号・相関突合の第一候補。**→ 2026-06 実施済み**(03 §6.20: value vs HML corr+0.77・mom vs WML corr+0.74＝構築バグ兆候なし・`examples/verify_factor_external.py`)。なお JKP 公開ポータル jkpfactors.com は国別ファクターリターンを無料配布しているが JS 駆動で CLI 直取得不可(手動 DL は可＝将来の追加突合源)。
 - **EDINET API**(金融庁公式・無料): 有報・四半期・大量保有の XBRL を機械取得(API 仕様書 Version 2 公開)。J-GAAP/IFRS 対応の型付き OSS パーサー(edinet-tools 等)あり。**J-Quants fins データの独立突合源**(XBRL 原文から)。提出タイムスタンプがあり PIT 設計に乗る。将来 P3-F(テキスト)のコーパス候補でもある。
 - 本リポジトリとの関係: → 04 P1-A の外部突合データ源(K2 と並記、French を先に試す)。
 

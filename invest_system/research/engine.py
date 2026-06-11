@@ -78,6 +78,10 @@ def backtest(strategy: Strategy, view: AsOfView, *, price_field: str = "close",
 
     execution_lag: 決定から執行までの遅延（バー数）。0=決定足の終値で執行（既定・
       従来）、1=翌足で執行（観測した終値で建てない＝同足の先読みを排除する現実寄り）。
+    rebalance: 決定日の列。**パネル index の連続部分列**（ウォームアップの切り落とし等）
+      に限る。本エンジンは各決定日に「次の1バー分」しか実現しないため、パネル頻度より
+      疎な日付（例：日次パネルに月末だけ）を渡すと間のリターンが静かに脱落する＝検出
+      して ValueError。月次研究は月次パネルか `open_fill_backtest` を使うこと。
     adv: 各銘柄の平均売買代金(¥)パネル（index=リバランス日, col=銘柄）。与えると
       容量(capacity_jpy)＝「最も流動性の低い建玉が participation×ADV に達するAUM上限」を
       算出（実運用で約定可能な規模の上限）。
@@ -103,6 +107,16 @@ def backtest(strategy: Strategy, view: AsOfView, *, price_field: str = "close",
     drop = 1 + execution_lag
     dates = pd.DatetimeIndex(rebalance) if rebalance is not None \
         else view.dates[:-drop]                 # 実現できない末尾は除外
+    if rebalance is not None and len(dates) > 1:
+        pos = view.dates.get_indexer(dates)
+        if (pos < 0).any():
+            raise ValueError("rebalance にパネル index に無い日付が含まれています。")
+        if (np.diff(pos) != 1).any():
+            raise ValueError(
+                "rebalance がパネル頻度より疎です：本エンジンは各決定日に「次の1バー分」"
+                "しか実現しないため、間のリターンが静かに脱落します。rebalance はパネル "
+                "index の連続部分列に限り、月次研究は月次パネルか open_fill_backtest を"
+                "使ってください。")
     borrow_per_period = short_borrow_bps / 1e4 / _ann_factor(dates)
     prev_w: pd.Series | None = None
     rows = []

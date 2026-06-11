@@ -86,6 +86,21 @@ def test_capacity_nan_without_adv():
     assert np.isnan(res.capacity_jpy)
 
 
+def test_rebalance_must_be_contiguous_panel_subsequence():
+    # 疎な rebalance は「次の1バー分」しか実現せず中間リターンが脱落＝拒否する。
+    idx = pd.date_range("2024-01-01", periods=10, freq="D")
+    close = pd.DataFrame({"A": np.linspace(100.0, 109.0, 10)}, index=idx)
+    strat = SignalTimingStrategy(pd.Series(1.0, index=idx), "A", threshold=0.0)
+    view = AsOfView({"close": close})
+    r = backtest(strat, view, costs_bps=0.0, rebalance=idx[3:8]).returns
+    assert list(r.index) == list(idx[3:8])      # 連続部分列（ウォームアップ）は可
+    with pytest.raises(ValueError, match="疎"):
+        backtest(strat, view, costs_bps=0.0, rebalance=idx[::2])
+    with pytest.raises(ValueError, match="無い日付"):
+        backtest(strat, view, costs_bps=0.0,
+                 rebalance=pd.DatetimeIndex(["2030-01-01", "2030-01-02"]))
+
+
 def test_ann_factor_inference():
     daily = pd.date_range("2020-01-01", periods=252 * 3, freq="B")
     assert 230 < _ann_factor(daily) < 270          # 日次 ≈ 252

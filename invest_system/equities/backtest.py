@@ -10,11 +10,15 @@ import numpy as np
 import pandas as pd
 
 
-def _target_weights(factor_row: pd.Series, ret_row: pd.Series, quantile: float,
+def _target_weights(factor_row: pd.Series, quantile: float,
                     min_names: int):
-    """1日断面のロングショート目標比率（long合計+1, short合計-1, グロス2）。"""
-    valid = factor_row.notna() & ret_row.notna()
-    fr = factor_row[valid]
+    """1日断面のロングショート目標比率（long合計+1, short合計-1, グロス2）。
+
+    選定は**ファクター値のみ**で行う。「翌期リターンが存在すること」を条件に
+    入れると、形成時点で翌期の上場廃止・取引停止を知っている先読み（生存者
+    バイアス＝悪い銘柄がロング側から消える上方バイアス）になるため使わない。
+    """
+    fr = factor_row.dropna()
     if len(fr) < max(min_names, 2):
         return None
     k = max(1, int(len(fr) * quantile))
@@ -36,12 +40,16 @@ def long_short_returns(factor: pd.DataFrame, fwd_ret: pd.DataFrame,
     fwd_ret  : wide。行 t は t→t+1 の実現リターン（forward_returns の出力）。
     quantile : 各サイドの分位（0.2=上下20%）。
     costs_bps: 片道売買コスト[bps]。回転 sum|Δw| に対して課金（両サイド・両端）。
+
+    選定後にリターンが欠損する銘柄（翌期の上場廃止・取引停止等）は当期損益への
+    寄与 0 ＝「退出を価格不変で清算する」近似（真の退出リターンは本パネルでは
+    観測不能）。選定から除外はしない（_target_weights の先読み排除を参照）。
     """
     idx = factor.index.intersection(fwd_ret.index)
     prev_w: pd.Series | None = None
     rows = []
     for dt in idx:
-        w = _target_weights(factor.loc[dt], fwd_ret.loc[dt], quantile, min_names)
+        w = _target_weights(factor.loc[dt], quantile, min_names)
         if w is None:
             rows.append((dt, np.nan))
             prev_w = None

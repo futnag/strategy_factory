@@ -265,6 +265,19 @@ def test_accruals_quality_sign_in_bundle():
     assert out["accruals"].loc[idx[0], "200"] == pytest.approx(-0.4)
 
 
+def test_long_short_returns_no_lookahead_on_delisting():
+    # 「翌期リターンが存在するか」を選定に使わない（生存者バイアス排除）。
+    # E はファクター最上位だが翌期に退出（fwd NaN）→ ロングに選ばれ寄与は 0。
+    idx = [pd.Timestamp("2024-01-31")]
+    factor = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0], "D": [4.0],
+                           "E": [5.0]}, index=idx)
+    fwd = pd.DataFrame({"A": [-0.05], "B": [0.0], "C": [0.0], "D": [0.10],
+                        "E": [np.nan]}, index=idx)
+    r = long_short_returns(factor, fwd, quantile=0.2, min_names=4)
+    # long=E（D=+10% に化けない）, short=A（+0.05）
+    assert r.iloc[0] == pytest.approx(0.05)
+
+
 def test_long_short_returns_sign_and_costs():
     idx = [pd.Timestamp("2024-01-31")]
     factor = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0], "D": [4.0]}, index=idx)

@@ -42,18 +42,52 @@ def load_feature(name: str, base: str = "data", start=None, end=None) -> pd.Data
     return df
 
 
+def tradability_mask(base: str = "data") -> pd.DataFrame:
+    """約定可能性マスク（True=約定可能）。C3(arXiv:2507.07107) の mask-first 用。
+
+    引け張り付き（`frictions.limit_lock_flags`＝UL/LL × 引け値）・出来高ゼロの
+    （銘柄, 日）を False にする。Silver の close/high/low/upper_limit/lower_limit/
+    volume から構築。必要フィールドが未 materialize なら全 True（マスク無効）。
+    """
+    from ..equities.frictions import limit_lock_flags
+
+    close = load_wide("close", base=base)
+    if close.empty:
+        return pd.DataFrame()
+    high, low = load_wide("high", base=base), load_wide("low", base=base)
+    ul = load_wide("upper_limit", base=base)
+    ll = load_wide("lower_limit", base=base)
+    vo = load_wide("volume", base=base)
+    if high.empty or low.empty or ul.empty or ll.empty:
+        return pd.DataFrame(True, index=close.index, columns=close.columns)
+    no_buy, no_sell = limit_lock_flags(close, high, low, ul, ll,
+                                       volume=(None if vo.empty else vo))
+    return ~(no_buy | no_sell)
+
+
 def build_price_features(base: str = "data", vol_window: int = 20,
                          mom_lookback: int = 252, mom_skip: int = 21,
-                         rev_window: int = 5) -> dict:
+                         rev_window: int = 5,
+                         mask_non_tradable: bool = False) -> dict:
     """adj_close（Silver）→ returns/log_returns/vol/momentum/reversal を wide で materialize。
 
     すべて ≤t のみ参照：returns[t]=adjC[t]/adjC[t-1]-1、momentum=adjC[t-skip]/adjC[t-lb]-1
     （直近月除外）、reversal=-(adjC[t]/adjC[t-w]-1)、vol=直近窓の実現ボラ(年率)。
+
+    mask_non_tradable: True で C3 の mask-first＝**約定不能日（引け張り付き・出来高ゼロ）
+    の価格を NaN にしてから**全特徴量を計算する（上流汚染の遮断）。既定 False（現状維持＝
+    過去研究の再現性保持）。docs/03 §6.21 の監査で旗艦構成（月次・流動性上位300）への
+    影響は無視できる規模と測定済みだが、日次・小型・イベント系の価格研究は True を前提と
+    すること。
     """
     px = load_wide("adj_close", base=base)
     if px.empty:
         return {}
     px = px.sort_index()
+    if mask_non_tradable:
+        tm = tradability_mask(base=base)
+        if not tm.empty:
+            px = px.where(tm.reindex_like(px).fillna(True))
     ret = px.pct_change()
     out = {
         "returns": ret,

@@ -50,6 +50,41 @@ def test_price_features_no_lookahead(tmp_path):
         vol1.iloc[:k + 1], load_feature("vol_10", base=str(tmp_path)).iloc[:k + 1])
 
 
+def _silver_field(tmp, name, dates, data):
+    wd = tmp / "processed" / "equities" / "wide"
+    wd.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(data, index=pd.DatetimeIndex(dates, name="Date")).to_parquet(
+        wd / f"{name}.parquet")
+
+
+def test_mask_non_tradable_excludes_pinned_prices(tmp_path):
+    # mask-first（C3）：ストップ高引けの価格は特徴量計算に入れない。
+    d = pd.date_range("2022-01-03", periods=40, freq="B")
+    n, k = len(d), 20                                # day k: A がストップ高引け
+    a = np.linspace(100.0, 139.0, n)
+    b = np.full(n, 50.0)
+    close = {"A": a, "B": b}
+    high = {"A": a + 1.0, "B": b + 1.0}
+    ul = {"A": np.zeros(n), "B": np.zeros(n)}
+    high["A"] = high["A"].copy(); high["A"][k] = a[k]      # close>=high＝張り付き
+    ul["A"] = ul["A"].copy(); ul["A"][k] = 1.0
+    _silver_field(tmp_path, "adj_close", d, close)
+    _silver_field(tmp_path, "close", d, close)
+    _silver_field(tmp_path, "high", d, high)
+    _silver_field(tmp_path, "low", d, {"A": a - 1.0, "B": b - 1.0})
+    _silver_field(tmp_path, "upper_limit", d, ul)
+    _silver_field(tmp_path, "lower_limit", d, {"A": np.zeros(n), "B": np.zeros(n)})
+    _silver_field(tmp_path, "volume", d, {"A": np.full(n, 100.0),
+                                          "B": np.full(n, 100.0)})
+    build_price_features(base=str(tmp_path), mask_non_tradable=True)
+    ret = load_feature("returns", base=str(tmp_path))
+    assert np.isnan(ret.iloc[k]["A"]) and np.isnan(ret.iloc[k + 1]["A"])
+    assert not np.isnan(ret.iloc[k]["B"])              # 他銘柄・他日は不変
+    assert not np.isnan(ret.iloc[k + 2]["A"])
+    build_price_features(base=str(tmp_path))           # 既定はマスク無し＝従来どおり
+    assert not np.isnan(load_feature("returns", base=str(tmp_path)).iloc[k]["A"])
+
+
 def test_regime_pit_and_labels(tmp_path):
     d = pd.date_range("2020-01-02", periods=600, freq="B")
     rng = np.random.default_rng(2)

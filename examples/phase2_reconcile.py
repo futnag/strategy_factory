@@ -116,7 +116,8 @@ def main() -> int:
         adj0 = _adj_at(op_adj, f_eq).reindex(invested.index)
         fut0 = float(f_fut["fill_price"].iloc[0])
         n_hedge = int(man["hedge_contracts"])
-        hedge_notional = -n_hedge * fut0 * 10.0           # 売り＝負
+        # n_hedge=0 のとき fut0 が NaN でも 0×NaN=NaN で月全体を汚染しないよう明示 0
+        hedge_notional = (-n_hedge * fut0 * 10.0) if n_hedge else 0.0  # 売り＝負
         ts_notional = ots.set_index("asset")["target_yen"]  # ペーパー＝想定元本
         ts0 = f_ts.set_index("key")["fill_price"].reindex(ts_notional.index)
         live_gap = float(ots["shortfall_yen"].abs().sum())
@@ -147,7 +148,9 @@ def main() -> int:
 
         rel_eq = adj1 / adj0.replace(0, np.nan) - 1.0
         pnl_stocks = yen_positions_pnl(invested, rel_eq)
-        pnl_hedge = hedge_notional * (fut1 / fut0 - 1.0)
+        # fut0/fut1 欠損（データ鮮度等）の NaN は意図的に伝播させる＝下流の
+        # DATA-ERROR ガードで月ごと検出する（黙って 0 にしない）
+        pnl_hedge = hedge_notional * (fut1 / fut0 - 1.0) if hedge_notional else 0.0
         rel_ts = ts1 / ts0.replace(0, np.nan) - 1.0
         pnl_ts = yen_positions_pnl(ts_notional, rel_ts)
         ret_eq = (pnl_stocks + pnl_hedge) / cap_eq
@@ -191,6 +194,10 @@ def main() -> int:
         })
 
     df = pd.DataFrame(rows).set_index("month")
+    # データ障害ガード：月次リターンの NaN（約定/評価価格の欠損）は黙って落とさない。
+    # drawdown_status が DATA-ERROR を返し、本スクリプトは exit 2（Actions 失敗→Issue）。
+    bad_months = list(df.index[df[["ret_eq", "ret_ts", "combo_net"]]
+                               .isna().any(axis=1)])
     net = pd.Series(df["combo_net"].values,
                     index=pd.PeriodIndex(df.index, freq="M").to_timestamp("M"))
     dd, cur_dd, kill = drawdown_status(net)
@@ -214,6 +221,10 @@ def main() -> int:
             f"{r['ret_ts']:+.2%} | {r['combo_gross']:+.2%} | {r['combo_net']:+.2%} | "
             f"¥{r['long_fill_yen']:,.0f} | {r['unfilled_names']} | "
             f"¥{r['ts_live_gap_yen']:,.0f} |")
+    if bad_months:
+        lines.append("")
+        lines.append(f"⚠ **DATA-ERROR**: リターン欠損月 = {', '.join(bad_months)}"
+                     "（約定/評価価格の欠損。外部価格の鮮度・nk225_fut を確認）")
     report = "\n".join(lines)
     (DIR / "report_latest.md").write_text(report, encoding="utf-8")
     print(report)
@@ -273,6 +284,10 @@ def main() -> int:
         json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n出力: {DIR / 'report_latest.md'} / status.json / months.csv / "
           f"equity_daily.csv（{len(daily_df)}日分）")
+    if bad_months:
+        print(f"\nERROR: 月次リターンに欠損（{', '.join(bad_months)}）。"
+              "キルスイッチ判定不能＝データを修復してください。")
+        return 2
     return 0
 
 

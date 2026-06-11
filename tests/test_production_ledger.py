@@ -54,6 +54,20 @@ def test_drawdown_status_thresholds():
     assert "STOP" in st                                    # 累積 −16% 超
 
 
+def test_drawdown_status_nan_is_data_error_not_silently_dropped():
+    # 約定/評価価格の欠損（NaN月）は黙って DD 計算から落とさない＝fail-safe。
+    idx = pd.date_range("2025-01-31", periods=4, freq="ME")
+    r = pd.Series([0.01, np.nan, -0.20, 0.0], index=idx)
+    _, cur, st = drawdown_status(r)
+    assert "DATA-ERROR" in st
+    assert "STOP" in st                          # 有効月のみの参考判定も併記
+    assert cur == pytest.approx(1.01 * 0.80 / 1.01 - 1.0)
+    _, _, st2 = drawdown_status(pd.Series([np.nan, np.nan], index=idx[:2]))
+    assert "DATA-ERROR" in st2                   # 全欠損も判定不能として明示
+    _, _, st3 = drawdown_status(pd.Series(dtype="float64"))
+    assert st3 == "OK"                           # 空（運用前）は従来どおり OK
+
+
 def test_drawdown_counts_from_initial_capital():
     # 初月から負け続けても「ピーク未更新だからDD=0」にならない（元本基準）
     idx = pd.date_range("2025-01-31", periods=2, freq="ME")

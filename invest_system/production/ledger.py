@@ -58,9 +58,18 @@ def drawdown_status(returns: pd.Series) -> tuple[pd.Series, float, str]:
 
     DD は**当初元本（1.0）を含むランニングマックス**から測る＝初月の損失も DD として
     数える（運用開始直後に −9% なら ALERT が鳴るべき）。
+
+    fail-safe：入力に NaN（約定/評価価格の欠損＝データ障害）が混じる月は**黙って
+    除外しない**。無人運用で「先物価格が取れなかった月」が DD 計算から静かに消えると
+    キルスイッチが鳴らないまま継続しうるため、status を DATA-ERROR とし（有効月のみの
+    参考判定を併記）、修復されるまで「正常」と区別する。
     """
+    n_missing = int(returns.isna().sum())
     r = returns.dropna()
     if r.empty:
+        if n_missing:
+            return (pd.Series(dtype="float64"), 0.0,
+                    f"DATA-ERROR（全{n_missing}ヶ月のリターンが欠損＝判定不能）")
         return pd.Series(dtype="float64"), 0.0, "OK"
     cum = (1.0 + r).cumprod()
     runmax = np.maximum.accumulate(np.concatenate([[1.0], cum.to_numpy()]))[1:]
@@ -74,6 +83,9 @@ def drawdown_status(returns: pd.Series) -> tuple[pd.Series, float, str]:
         status = f"ALERT（警報 {ALERT_DD:.0%} 超過）"
     else:
         status = "OK"
+    if n_missing:
+        status = (f"DATA-ERROR（リターン欠損{n_missing}ヶ月＝DD判定不能。"
+                  f"参考: 有効月のみで {status}）")
     return dd, cur, status
 
 

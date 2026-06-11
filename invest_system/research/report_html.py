@@ -66,10 +66,12 @@ def to_html(verdict: GridVerdict) -> str:
                else "mid" if v.dsr >= 0.5 else "bad")
         color = {"pass": "#137a3a", "mid": "#b8860b", "bad": "#a11"}[cls]
         mtrl = "∞" if np.isinf(v.min_trl) else f"{v.min_trl:.0f}"
+        rob = "—" if np.isnan(getattr(v, "robustness", float("nan"))) \
+            else f"{v.robustness:.2f}"
         rows.append(
             f"<tr><td class='name'>{esc(v.name)}</td><td>{_svg_line(cum, color=color)}</td>"
             f"<td>{v.sr_ann:+.2f}</td><td>{v.psr:.2f}</td>"
-            f"<td class='dsr {cls}'>{v.dsr:.2f}</td><td>{mtrl}</td>"
+            f"<td class='dsr {cls}'>{v.dsr:.2f}</td><td>{rob}</td><td>{mtrl}</td>"
             f"<td>{esc(_fmt_cap(v.capacity_jpy))}</td><td>{v.max_dd:.1%}</td></tr>")
     if verdict.passed and verdict.best is not None:
         banner = (f"<div class='banner pass'>✅ PASS — {esc(verdict.best.name)} "
@@ -87,8 +89,8 @@ def to_html(verdict: GridVerdict) -> str:
 判定基準 DSR ≥ {verdict.dsr_threshold}</div>
 {banner}
 <table><thead><tr><th class="name">strategy</th><th>エクイティ曲線</th>
-<th>SR(ann)</th><th>PSR(&gt;0)</th><th>DSR</th><th>minTRL</th><th>容量</th><th>maxDD</th>
-</tr></thead><tbody>{''.join(rows)}</tbody></table>
+<th>SR(ann)</th><th>PSR(&gt;0)</th><th>DSR</th><th>頑健</th><th>minTRL</th><th>容量</th>
+<th>maxDD</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
 <div class="note">緑=損益分岐(=1)。DSRは scope の累計試行 K={verdict.k} でデフレート
 （試行を増やすほど基準が上がる＝p-hack不能）。</div>
 </body></html>"""

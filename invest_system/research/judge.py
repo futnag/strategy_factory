@@ -36,6 +36,7 @@ class StrategyVerdict:
     hit: float
     sub: list = field(default_factory=list)   # [(label, ann_sharpe)]
     capacity_jpy: float = float("nan")        # 容量(¥)
+    robustness: float = float("nan")          # 補助頑健性スコア（表示専用・DP18）
 
 
 @dataclass
@@ -100,6 +101,30 @@ def walk_forward_regime_assignment(sleeve_returns: dict, regime: pd.Series,
                     best, best_mu = nm, mu
         out.iloc[i] = best                              # None のままなら NaN（現金）
     return out
+
+
+def robustness_score(sub: list, max_dd: float, turnover: float) -> float:
+    """補助頑健性スコア [0,1]（GT-Score 型・docs/05 A1 / docs/04 P2-B）。**表示専用**。
+
+    PASS/FAIL 判定には一切使わない（判定は DSR≥threshold のみ＝DP18）。グリッド内で
+    「DSR は近いが脆い」構成（特定サブ期間頼み・深い DD・高回転＝コスト脆弱）を早期に
+    識別する目安。成分と重み（事前固定。根拠：A1 の核心は一貫性＝サブ期間系に計 0.6、
+    残りをダウンサイドとコスト脆弱性で等分）:
+      0.4 × サブ期間 SR の最小値（年率 −1..+1 → 0..1 の線形・外はクリップ）
+      0.2 × サブ期間 SR の符号一貫性（正の期間割合）
+      0.2 × maxDD（0% → 1、−30% 以深 → 0 の線形）
+      0.2 × 回転率（月次 Σ|Δw|=0 → 1、2.0=グロス全入替 → 0 の線形）
+    """
+    srs = [s for _, s in sub if np.isfinite(s)]
+    if not srs:
+        return float("nan")
+    worst = float(np.clip((min(srs) + 1.0) / 2.0, 0.0, 1.0))
+    consist = float(np.mean([1.0 if s > 0 else 0.0 for s in srs]))
+    dd = (float(np.clip(1.0 - abs(max_dd) / 0.30, 0.0, 1.0))
+          if np.isfinite(max_dd) else 0.0)
+    tn = (float(np.clip(1.0 - turnover / 2.0, 0.0, 1.0))
+          if np.isfinite(turnover) else 0.0)
+    return 0.4 * worst + 0.2 * consist + 0.2 * dd + 0.2 * tn
 
 
 def _maxdd(r: pd.Series) -> float:
@@ -179,10 +204,13 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
             mtrl = min_track_record_length(sr, 0.0, sk, ku, 0.95)
         except ValueError:
             mtrl = float("inf")
+        sub = _subperiods(r, res.ann_factor)
+        turn = float(res.turnover.mean())
+        mdd = _maxdd(r)
         results.append(StrategyVerdict(
             s.name, s.params, n, sr * np.sqrt(res.ann_factor), psr, dsr, mtrl,
-            float(res.turnover.mean()), _maxdd(r), _hit(r, res.n_positions),
-            _subperiods(r, res.ann_factor), res.capacity_jpy))
+            turn, mdd, _hit(r, res.n_positions), sub, res.capacity_jpy,
+            robustness=robustness_score(sub, mdd, turn)))
 
     results.sort(key=lambda v: v.dsr if not np.isnan(v.dsr) else -9, reverse=True)
     best = results[0] if results else None
@@ -204,15 +232,18 @@ def _render(scope, k, sr_var, results, best, passed, hypothesis,
         f"- 試行数 K（この scope の累計）= **{k}**, 試行間SR分散 V[SR]={sr_var:.4f}",
         f"- 判定基準: DSR ≥ {thr}",
         "",
-        "| strategy | SR(ann) | PSR(>0) | **DSR** | minTRL(月) | 回転 | maxDD | 容量 |",
-        "|---|--:|--:|--:|--:|--:|--:|--:|",
+        "| strategy | SR(ann) | PSR(>0) | **DSR** | 頑健 | minTRL(月) | 回転 | maxDD | 容量 |",
+        "|---|--:|--:|--:|--:|--:|--:|--:|--:|",
     ]
     for v in results:
         mtrl = "∞" if np.isinf(v.min_trl) else f"{v.min_trl:.0f}"
+        rob = "—" if np.isnan(v.robustness) else f"{v.robustness:.2f}"
         lines.append(
-            f"| {v.name} | {v.sr_ann:+.2f} | {v.psr:.2f} | **{v.dsr:.2f}** | "
+            f"| {v.name} | {v.sr_ann:+.2f} | {v.psr:.2f} | **{v.dsr:.2f}** | {rob} | "
             f"{mtrl} | {v.turnover:.2f} | {v.max_dd:.1%} | {_fmt_cap(v.capacity_jpy)} |")
     lines.append("")
+    lines.append("- 頑健＝補助頑健性スコア（表示専用・judge.robustness_score）。"
+                 "**判定は DSR のみ**（DP18）。")
     if passed:
         lines.append(f"## 判定: ✅ PASS — {best.name}（DSR={best.dsr:.3f} ≥ {thr}）")
         lines.append("多重検定後も有意。ただし実運用前に厳密OOS／容量／執行を要確認。")

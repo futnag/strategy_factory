@@ -38,6 +38,25 @@ def test_judge_counts_trials_and_fails_on_noise():
     assert "判定レポート" in v.report_md and "FAIL" in v.report_md
 
 
+def test_robustness_score_displayed_not_judging():
+    from invest_system.research.judge import robustness_score
+    view, strategies = _noise_setup(4)
+    with TrialRegistry(":memory:") as reg:
+        v = judge_grid(strategies, view, scope="unit_rob",
+                       hypothesis="pure noise, no a priori edge",
+                       economic_rationale="none; randomly generated factors",
+                       registry=reg, costs_bps=0.0)
+    assert "頑健" in v.report_md                       # 表示される
+    for r in v.results:
+        assert np.isnan(r.robustness) or 0.0 <= r.robustness <= 1.0
+    assert v.passed is False                          # 判定は DSR のみ（DP18）
+    # 成分の向き：一貫して強い > 脆い（特定期間頼み・深DD・高回転）
+    good = robustness_score([("a", 1.0), ("b", 1.2), ("c", 0.8)], -0.05, 0.2)
+    bad = robustness_score([("a", -1.5), ("b", 0.1), ("c", 1.9)], -0.40, 2.5)
+    assert 0.0 <= bad < good <= 1.0
+    assert np.isnan(robustness_score([], -0.1, 0.5))  # サブ期間なし＝判定不能
+
+
 def test_judge_requires_a_priori_theory():
     # 仮説・経済的合理性が空（短すぎ）なら事前登録ゲートで弾かれる
     view, strategies = _noise_setup(2)

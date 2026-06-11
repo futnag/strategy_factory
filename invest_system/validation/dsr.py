@@ -94,3 +94,19 @@ def min_track_record_length(sr: float, sr_benchmark: float, skew: float,
         raise ValueError("sr must exceed sr_benchmark for finite minTRL")
     denom = 1.0 - skew * sr + ((kurt - 1.0) / 4.0) * sr ** 2
     return float(1.0 + denom * (norm.ppf(prob) / (sr - sr_benchmark)) ** 2)
+
+
+def min_backtest_length(n_trials: int, target_sr_ann: float = 1.0) -> float:
+    """MinBTL（年）：N 試行のノイズだけで in-sample 年率 SR が target に達しうる
+    最小バックテスト長。Bailey & López de Prado (2014, Notices of the AMS)。
+
+    E[max_N SR_ann] = E[max_N z]/√T_years（真 SR=0・年次換算）より
+      MinBTL = (E[max_N z] / target_sr_ann)²
+    E[max_N z] は expected_max_sharpe(N, 1) と同じ近似式。バックテストが
+    これより短いと「ノイズの最良がtargetを超える」のが期待値で起きる＝
+    K が増えるほど必要標本が伸びることの定量化。表示専用（DP18）。
+    """
+    if target_sr_ann <= 0:
+        raise ValueError("target_sr_ann must be > 0")
+    max_z = expected_max_sharpe(n_trials, 1.0)
+    return float((max_z / target_sr_ann) ** 2)

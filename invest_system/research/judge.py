@@ -16,8 +16,10 @@ import numpy as np
 import pandas as pd
 
 from ..validation.dsr import (
-    _moments, min_track_record_length, probabilistic_sharpe_ratio,
+    _moments, min_backtest_length, min_track_record_length,
+    probabilistic_sharpe_ratio,
 )
+from ..validation.pbo import pbo_cscv
 from ..validation.registry import TrialRegistry
 from .engine import backtest
 
@@ -51,6 +53,8 @@ class GridVerdict:
     hypothesis: str = ""
     dsr_threshold: float = 0.95
     series: dict = field(default_factory=dict)   # name -> ネットリターン系列
+    pbo: float = float("nan")            # CSCV 過学習確率（表示専用・DP18）
+    min_btl_years: float = float("nan")  # MinBTL（年・K と SR_ann=1 基準・表示専用）
 
 
 def regime_breakdown(returns: pd.Series, regime: pd.Series,
@@ -217,20 +221,30 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
     passed = bool(best and not np.isnan(best.dsr) and best.dsr >= dsr_threshold)
     k = registry.trial_count(scope)
     sr_var = registry.sharpe_variance(scope)
-    report = _render(scope, k, sr_var, results, best, passed, hypothesis,
-                     dsr_threshold)
     series = {s.name: r for s, res, r, uid in staged}
+    # 補助診断（表示専用・DP18）：グリッドの PBO（CSCV）と scope K の MinBTL
+    pbo = (pbo_cscv(pd.DataFrame(series)).pbo if len(series) >= 2
+           else float("nan"))
+    min_btl = min_backtest_length(k, 1.0) if k >= 1 else float("nan")
+    report = _render(scope, k, sr_var, results, best, passed, hypothesis,
+                     dsr_threshold, pbo, min_btl)
     return GridVerdict(scope, k, sr_var, results, best, passed, report,
-                       hypothesis, dsr_threshold, series)
+                       hypothesis, dsr_threshold, series, pbo, min_btl)
 
 
 def _render(scope, k, sr_var, results, best, passed, hypothesis,
-            thr) -> str:
+            thr, pbo=float("nan"), min_btl=float("nan")) -> str:
+    pbo_s = "—" if np.isnan(pbo) else f"{pbo:.2f}"
+    btl_s = "—" if np.isnan(min_btl) else f"{min_btl:.1f}年"
     lines = [
         f"# 判定レポート: {scope}",
         f"- 仮説: {hypothesis}",
         f"- 試行数 K（この scope の累計）= **{k}**, 試行間SR分散 V[SR]={sr_var:.4f}",
         f"- 判定基準: DSR ≥ {thr}",
+        f"- 補助診断（表示専用・DP18）: PBO(CSCV)={pbo_s}"
+        f"（IS最良がOOSで中央値以下になる確率・ノイズ≈0.5）, "
+        f"MinBTL(K={k}, SR_ann=1)≈{btl_s}"
+        f"（これより短い標本ではノイズの最良が年率SR 1 を超えうる）",
         "",
         "| strategy | SR(ann) | PSR(>0) | **DSR** | 頑健 | minTRL(月) | 回転 | maxDD | 容量 |",
         "|---|--:|--:|--:|--:|--:|--:|--:|--:|",

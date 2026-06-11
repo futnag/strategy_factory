@@ -9,10 +9,12 @@ from .dsr import (
     expected_max_sharpe,
     deflated_sharpe_ratio,
     deflated_sharpe_ratio_from_returns,
+    min_backtest_length,
     min_track_record_length,
 )
 from .purge_embargo import get_train_times, embargo_after
 from .cpcv import CombinatorialPurgedKFold
+from .pbo import PBOResult, pbo_cscv
 from .registry import TrialRegistry
 
 __all__ = [
@@ -21,9 +23,12 @@ __all__ = [
     "expected_max_sharpe",
     "deflated_sharpe_ratio",
     "deflated_sharpe_ratio_from_returns",
+    "min_backtest_length",
     "min_track_record_length",
     "get_train_times",
     "embargo_after",
     "CombinatorialPurgedKFold",
+    "PBOResult",
+    "pbo_cscv",
     "TrialRegistry",
 ]

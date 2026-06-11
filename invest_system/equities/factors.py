@@ -81,6 +81,53 @@ def low_volatility(price: pd.DataFrame, window: int = 12) -> pd.DataFrame:
     return -vol
 
 
+def residual_momentum(ret: pd.DataFrame, market: pd.Series, *, window: int = 36,
+                      mom_len: int = 12, skip: int = 1,
+                      standardize: bool = True) -> pd.DataFrame:
+    """残差モメンタム（iMOM）。Blitz-Huij-Martens 2011 / Chaves 2016（docs/04 P3-H）。
+
+    各 (t, 銘柄) で過去 window ヶ月（t-window〜t-1）の月次リターンを市場リターンへ
+    単回帰（市場モデル。Chaves は単回帰だけで主要な便益が出ると報告）し、残差のうち
+    「直近 skip ヶ月を除く直近 mom_len ヶ月窓」（月 t-mom_len〜t-1-skip＝mom_len−skip 本）
+    の合計を、standardize=True ならその標本標準偏差（ddof=1）で割って返す。
+    伝統的モメンタムから市場ベータ起因の系統成分（リバーサルしやすい）を除き、
+    銘柄固有のアンダーリアクション成分を取り出す仮説の実装。
+
+    PIT：行 t は ≤t-1 の実現リターンのみ使用（先読みなし）。窓内に欠損のある銘柄は
+    NaN（除外ルールの事前固定＝完全な window ヶ月を要求。上場間もない銘柄は自然に
+    除外される）。ret: 月次リターン wide（index=月末, col=Code）。market: 同 index の
+    市場リターン（等加重等）。market 側に欠損のある行は全銘柄 NaN。
+    """
+    if window <= mom_len or mom_len <= skip:
+        raise ValueError("require window > mom_len > skip")
+    out = pd.DataFrame(np.nan, index=ret.index, columns=ret.columns, dtype=float)
+    R = ret.to_numpy(dtype=float)
+    M = market.reindex(ret.index).to_numpy(dtype=float)
+    for it in range(window, len(ret.index)):
+        mw = M[it - window:it]                        # 月 t-window 〜 t-1
+        if np.isnan(mw).any():
+            continue
+        Rw = R[it - window:it]
+        ok = ~np.isnan(Rw).any(axis=0)                # 完全な窓を要求（事前固定）
+        if not ok.any():
+            continue
+        Y = Rw[:, ok]
+        mc = mw - mw.mean()
+        denom = float((mc * mc).sum())
+        if denom <= 0:
+            continue
+        beta = (mc @ (Y - Y.mean(axis=0))) / denom
+        alpha = Y.mean(axis=0) - beta * mw.mean()
+        resid = Y - (alpha[None, :] + np.outer(mw, beta))
+        seg = resid[window - mom_len: window - skip]  # 月 t-mom_len 〜 t-1-skip
+        sig = seg.sum(axis=0)
+        if standardize:
+            sd = seg.std(axis=0, ddof=1)
+            sig = np.where(sd > 0, sig / sd, np.nan)
+        out.iloc[it, np.flatnonzero(ok)] = sig
+    return out
+
+
 def cross_sectional_zscore(df: pd.DataFrame, winsor: float = 3.0) -> pd.DataFrame:
     """各日付（行）で銘柄横断にzスコア化。winsor で±σにクリップ（外れ値抑制）。"""
     mu = df.mean(axis=1)

@@ -24,6 +24,7 @@ from invest_system.equities.factors import (
     cross_sectional_zscore,
     low_volatility,
     market_cap,
+    residual_momentum,
     sector_neutralize,
     value_quality_size_factors,
 )
@@ -263,6 +264,42 @@ def test_accruals_quality_sign_in_bundle():
     # accruals = (CFO − NP)/TA：100→(50−10)/100=+0.4（高品質）, 200→−0.4（低品質）
     assert out["accruals"].loc[idx[0], "100"] == pytest.approx(0.4)
     assert out["accruals"].loc[idx[0], "200"] == pytest.approx(-0.4)
+
+
+def test_residual_momentum_extracts_idiosyncratic_component():
+    # 市場ベータ起因の成分は残差化で消え、直近窓の固有ドリフトだけが符号に出る。
+    rng = np.random.default_rng(7)
+    n = 40
+    idx = pd.date_range("2018-01-31", periods=n, freq="ME")
+    mkt = pd.Series(rng.normal(0.0, 0.04, n), index=idx)
+    noise = rng.normal(0.0, 0.001, (n, 3))
+    ret = pd.DataFrame({"A": mkt + noise[:, 0], "B": mkt + noise[:, 1],
+                        "C": 2.0 * mkt + noise[:, 2]}, index=idx)
+    # 最終行 t の momentum 窓＝月 t-12..t-2（iloc -13..-3）に固有ショックを置く
+    ret.iloc[-13:-2, ret.columns.get_loc("A")] += 0.02
+    ret.iloc[-13:-2, ret.columns.get_loc("B")] -= 0.02
+    rm = residual_momentum(ret, mkt, window=36, mom_len=12, skip=1)
+    last = rm.iloc[-1]
+    assert last["A"] > 1.0 and last["B"] < -1.0     # 固有成分は強く符号に出る
+    assert abs(last["C"]) < abs(last["A"]) / 5      # 高ベータだけでは出ない
+    assert np.isnan(rm.iloc[35]).all() and not np.isnan(rm.iloc[36]["A"])
+
+
+def test_residual_momentum_pit_and_window_rule():
+    rng = np.random.default_rng(8)
+    n = 45
+    idx = pd.date_range("2018-01-31", periods=n, freq="ME")
+    mkt = pd.Series(rng.normal(0.0, 0.03, n), index=idx)
+    ret = pd.DataFrame({"A": mkt + rng.normal(0, 0.01, n),
+                        "D": mkt + rng.normal(0, 0.01, n)}, index=idx)
+    ret.iloc[5, ret.columns.get_loc("D")] = np.nan   # 窓に欠損 → 該当行は NaN
+    rm1 = residual_momentum(ret, mkt)
+    assert np.isnan(rm1.iloc[38]["D"])               # 36ヶ月窓に欠損月を含む
+    assert not np.isnan(rm1.iloc[42]["D"])           # 欠損が窓から抜ければ復帰
+    ret2 = ret.copy()
+    ret2.iloc[-1] = 9.9                              # 未来（当月リターン）を改変
+    rm2 = residual_momentum(ret2, mkt)
+    assert rm2.iloc[-1]["A"] == rm1.iloc[-1]["A"]    # 行 t は ≤t-1 のみ参照＝PIT
 
 
 def test_negative_shares_yield_nan_not_sign_flip():

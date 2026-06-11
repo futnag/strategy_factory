@@ -9,6 +9,10 @@
   （既定2%）超のソースは**不採用**（別系列・単位違い・通貨違いの混入を遮断）。
   シンボル表は 2026-06 に実履歴と重複日照合済み（最大でも銅の 64bp）。
 - 追記は old.index.max() より**後**の日付のみ＝過去の書換えをしない（冪等）。
+- **確定足のみ追記**（cutoff）… 対象シンボル（CME先物・FX）はほぼ24時間取引で、
+  取得時点（21:30 JST 等）の「当日」日足は形成途中。過去不変の追記設計では
+  部分足を一度取り込むと永久凍結されるため、UTC 当日以降の行は追記しない
+  （確定した足だけが翌日以降に追記される＝鮮度を1日譲って正しさを取る）。
 
 ネットワーク層（fetch_yahoo・yfinance 遅延 import）と純関数
 （validate_overlap / merge_new_dates）を分離し、純関数はオフラインでテストする。
@@ -80,15 +84,26 @@ def validate_overlap(old_close: pd.Series, new_close: pd.Series, *,
     return bool(diff <= tolerance), diff, int(len(common))
 
 
-def merge_new_dates(old: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame, int]:
-    """old の最終日より**後**の行だけ new から追記（過去は不変・冪等）。
+def _utc_today() -> pd.Timestamp:
+    """UTC の「今日」（naive 00:00）。形成中の日足を遮断する既定カットオフ。"""
+    return pd.Timestamp.now(tz="UTC").normalize().tz_localize(None)
 
+
+def merge_new_dates(old: pd.DataFrame, new: pd.DataFrame, *,
+                    cutoff: pd.Timestamp | None = None
+                    ) -> tuple[pd.DataFrame, int]:
+    """old の最終日より**後**かつ cutoff より**前**の行だけ new から追記（過去は不変・冪等）。
+
+    cutoff: この日付**以降**の行は追記しない（モジュール docstring「確定足のみ追記」）。
+    None は無条件（後方互換）。update_external_prices は既定で UTC 当日を渡す。
     change_pct は境界を跨いだ close 前日比（%）で新規行のみ再計算する。
     """
     if new.empty:
         return old, 0
     last = old.index.max() if len(old) else pd.Timestamp.min
     add = new[new.index > last]
+    if cutoff is not None:
+        add = add[add.index < pd.Timestamp(cutoff)]
     if add.empty:
         return old, 0
     add = add.reindex(columns=["open", "high", "low", "close", "volume"]).copy()
@@ -101,13 +116,16 @@ def merge_new_dates(old: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame,
 
 
 def update_external_prices(keys=None, *, base: str = "data", period: str = "3mo",
-                           tolerance: float = 0.02, fetch=None) -> pd.DataFrame:
+                           tolerance: float = 0.02, fetch=None,
+                           cutoff: pd.Timestamp | None = None) -> pd.DataFrame:
     """keys（既定 PHASE2_KEYS）を差分追記し、キー別レポートを返す。
 
     fetch は差し替え可能（テストはネット不要）。あるキーの失敗は残りを止めない
     （status 列に記録し、鮮度は reconcile の status.json で監視する）。
+    cutoff: 既定 None = UTC 当日（形成中の日足を追記しない＝確定足のみ）。
     """
     fetch = fetch or fetch_yahoo
+    cutoff = _utc_today() if cutoff is None else pd.Timestamp(cutoff)
     pdir = Path(base) / "investers"
     rows = []
     for k in (PHASE2_KEYS if keys is None else list(keys)):
@@ -138,7 +156,7 @@ def update_external_prices(keys=None, *, base: str = "data", period: str = "3mo"
                 row["last"] = old.index.max().date() if len(old) else None
                 rows.append(row)
                 continue
-            merged, n_new = merge_new_dates(old, new)
+            merged, n_new = merge_new_dates(old, new, cutoff=cutoff)
             if n_new:
                 pdir.mkdir(parents=True, exist_ok=True)
                 merged.to_parquet(fp)

@@ -5,7 +5,7 @@ import pytest
 
 from invest_system.data.external import _PRICE_FILES
 from invest_system.data.external_fetch import (
-    merge_new_dates, update_external_prices, validate_overlap,
+    _utc_today, merge_new_dates, update_external_prices, validate_overlap,
 )
 
 
@@ -48,6 +48,39 @@ def test_merge_recomputes_change_pct_across_boundary():
     merged, _ = merge_new_dates(old, new)
     expect = (merged["close"].iloc[5] / merged["close"].iloc[4] - 1) * 100
     assert merged["change_pct"].iloc[5] == pytest.approx(round(expect, 2))
+
+
+def test_merge_cutoff_excludes_forming_bar():
+    # ほぼ24h銘柄は取得時点で当日足が形成中＝cutoff（当日）以降は追記しない。
+    old = _frame("2026-01-05", 10)
+    new = _frame("2026-01-05", 15)
+    cutoff = new.index[13]                                 # 14本目以降は「未確定」
+    merged, n_new = merge_new_dates(old, new, cutoff=cutoff)
+    assert n_new == 3                                      # 11..13本目のみ追記
+    assert merged.index.max() == new.index[12]
+    # 翌日（cutoff が進む）に残りが確定足として追記される＝凍結ではなく繰延
+    merged2, n2 = merge_new_dates(merged, new, cutoff=new.index[-1] + pd.Timedelta(days=1))
+    assert n2 == 2 and merged2.index.max() == new.index[-1]
+
+
+def test_update_external_prices_default_cutoff_blocks_today(tmp_path):
+    # 既定 cutoff=UTC当日：fetch が「今日の部分足」を返しても保存されない。
+    pdir = tmp_path / "investers"
+    pdir.mkdir(parents=True)
+    today = _utc_today()
+    idx = pd.date_range(end=today, periods=40, freq="D")   # 末尾＝今日（形成中）
+    close = 100.0 + np.arange(40, dtype=float)
+    full = pd.DataFrame({"open": close, "high": close, "low": close,
+                         "close": close, "volume": np.full(40, 1.0)}, index=idx)
+    full.index.name = "date"
+    full.iloc[:35].to_parquet(pdir / _PRICE_FILES["gold"])
+
+    rep = update_external_prices(["gold"], base=str(tmp_path),
+                                 fetch=lambda s, period="3mo": full)
+    assert rep.iloc[0]["status"] == "OK"
+    assert int(rep.iloc[0]["n_new"]) == 4                  # 今日の1本だけ遮断
+    saved = pd.read_parquet(pdir / _PRICE_FILES["gold"])
+    assert saved.index.max() < today                       # 部分足は凍結されない
 
 
 def test_update_external_prices_writes_and_rejects(tmp_path):

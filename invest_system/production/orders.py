@@ -14,6 +14,25 @@ import numpy as np
 import pandas as pd
 
 
+def banded_weights(target: pd.Series, held: pd.Series, band: float) -> pd.Series:
+    """リバランス・デッドバンド（単段・docs/03 §6.22 承認・D5）。
+
+    |目標 − 保有| < band の銘柄は保有ウェイトを据え置く（取引しない）＝等加重維持の
+    機械的な微調整・ダスト清算にコストを払わない。held は前月の intended ウェイト
+    （発注済み記録＝照合の基準）。band の判定セマンティクスは
+    `research.engine.apply_rebalance_band`（連鎖版）と同一。band≤0 は target の
+    非ゼロのみを返す。返り値は非ゼロウェイトのみ。
+    """
+    t = target.astype(float)
+    if band <= 0 or held.empty:
+        return t[t != 0.0]
+    names = t.index.union(held.index)
+    cur = t.reindex(names).fillna(0.0)
+    prv = held.astype(float).reindex(names).fillna(0.0)
+    cur = cur.where((cur - prv).abs() >= band, prv)
+    return cur[cur != 0.0]
+
+
 def equity_orders(weights: pd.Series, prices: pd.Series, capital: float,
                   lot: int = 1) -> tuple[pd.DataFrame, float]:
     """株式スリーブのロング注文表と、ショート脚の想定元本（ヘッジ対象）を返す。

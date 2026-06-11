@@ -51,7 +51,9 @@ from invest_system.equities.fundamentals import load_fundamentals, point_in_time
 from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors,
 )
-from invest_system.production import equity_orders, hedge_contracts, lot_orders  # noqa: E402
+from invest_system.production import (  # noqa: E402
+    banded_weights, equity_orders, hedge_contracts, lot_orders,
+)
 from invest_system.research import (  # noqa: E402
     AsOfView, CrossSectionalStrategy, RegimeSwitch,
 )
@@ -64,6 +66,26 @@ START = "2016-07"
 TSMOM_KEYS = ["nk225_fut", "sp500", "nasdaq_comp", "gold", "silver", "platinum",
               "wti", "copper", "usdjpy", "eurjpy", "audjpy"]
 OUT_DIR = Path("data/phase2")
+# リバランス・デッドバンド（§6.22 感応表で広域単調改善→保守値 0.25% を常設・承認済み）。
+# 適用は計測済みの株式スリーブのみ（TSMOM は未計測のため対象外＝従来どおり）。
+BAND_EQ = 0.0025
+
+
+def _prev_intended_switch(current_tag: str) -> pd.Series:
+    """前月の intended（switch スリーブ）＝デッドバンドの保有基準。無ければ空。
+
+    intended_<月>.parquet は発注済み記録（凍結）なので、band 適用後ウェイトの
+    連鎖（§6.22 のキャリー基準）がファイル経由で自然に維持される。
+    """
+    tags = sorted(p.stem.replace("intended_", "")
+                  for p in OUT_DIR.glob("intended_*.parquet"))
+    prev = [g for g in tags if g < current_tag]
+    if not prev:
+        return pd.Series(dtype="float64")
+    df = pd.read_parquet(OUT_DIR / f"intended_{prev[-1]}.parquet")
+    sw = df[df["sleeve"] == "switch"]
+    return pd.Series(sw["weight"].to_numpy(dtype=float),
+                     index=sw["key"].astype(str))
 
 
 def _switch_weights_latest() -> tuple[pd.Timestamp, pd.Series, pd.Series, float]:
@@ -130,6 +152,9 @@ def main() -> int:
     ap.add_argument("--skip-existing", action="store_true",
                     help="同月の manifest が既にあれば何も書かない（無人運用＝発注済み"
                          "記録の凍結。データ改定があっても過去の意図を上書きしない）")
+    ap.add_argument("--band", type=float, default=BAND_EQ,
+                    help="株式スリーブのリバランス・デッドバンド（§6.22 承認・既定 "
+                         "0.25%%。0 で無効＝従来どおり）")
     args = ap.parse_args()
     if not get_env("J_QUANTS_API_KEY"):
         print("ERROR: .env に J_QUANTS_API_KEY が必要です。")
@@ -145,6 +170,14 @@ def main() -> int:
     if stale > 7:
         print(f"  ⚠ 決定日が {stale} 日前です。examples/update_data.py で"
               "データを最新化してから再実行してください。")
+    # デッドバンド（§6.22）：前月 intended 比 |Δw|<band の銘柄は据え置き＝取引しない。
+    # band は執行フィルタでありシグナルではない（意思決定＝switch のウェイトは不変）。
+    held = _prev_intended_switch(f"{t_eq:%Y-%m}")
+    w_raw_n = len(w_eq)
+    w_eq = banded_weights(w_eq, held, args.band)
+    n_kept = int((w_eq.reindex(held.index).fillna(0.0) == held).sum()) if len(held) else 0
+    print(f"  デッドバンド band={args.band:.2%}: 目標 {w_raw_n}銘柄 → 発注対象 "
+          f"{len(w_eq)}銘柄（前月から据え置き {n_kept}銘柄）")
     orders_eq, short_notional = equity_orders(w_eq, px_eq, args.capital_eq)
     fut_px = load_external_prices(["nk225_fut"], field="close")["nk225_fut"] \
         .dropna().iloc[-1]
@@ -195,7 +228,7 @@ def main() -> int:
                 "decision_eq": f"{t_eq:%Y-%m-%d}", "decision_ts": f"{t_ts:%Y-%m-%d}",
                 "regime_vol": regime, "hedge_contracts": n_hedge,
                 "hedge_yen": hedge_yen, "short_notional": short_notional,
-                "long_yen": long_yen}
+                "long_yen": long_yen, "band_eq": args.band}
     f_man = OUT_DIR / f"manifest_{tag}.json"
     f_man.write_text(json.dumps(manifest, ensure_ascii=False, indent=2),
                      encoding="utf-8")

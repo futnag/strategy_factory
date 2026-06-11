@@ -3,7 +3,25 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from invest_system.production import equity_orders, hedge_contracts, lot_orders
+from invest_system.production import (
+    banded_weights, equity_orders, hedge_contracts, lot_orders,
+)
+
+
+def test_banded_weights_single_step():
+    # §6.22 承認のデッドバンド（前月 intended 基準・単段）。
+    held = pd.Series({"A": 0.0167, "B": 0.0167, "C": 0.002, "X": 0.0167})
+    target = pd.Series({"A": 0.0180, "B": 0.0440, "D": 0.0167})
+    out = banded_weights(target, held, 0.0025)
+    assert out["A"] == pytest.approx(0.0167)    # |Δ|=0.0013 < band → 据え置き
+    assert out["B"] == pytest.approx(0.0440)    # band 超は更新
+    assert out["C"] == pytest.approx(0.002)     # ダスト（|0−0.002|<band）は保有継続
+    assert out["D"] == pytest.approx(0.0167)    # 新規エントリは band 超＝建てる
+    assert "X" not in out.index                 # |0−0.0167|≥band ＝ 通常の清算は実行
+    # band=0 / 初月（保有なし）は target の非ゼロをそのまま
+    assert banded_weights(target, held, 0.0).equals(target[target != 0.0])
+    assert banded_weights(target, pd.Series(dtype="float64"),
+                          0.0025).equals(target[target != 0.0])
 
 
 def test_equity_orders_fractional_longs_and_short_aggregation():

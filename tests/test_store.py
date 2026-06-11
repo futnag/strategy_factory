@@ -57,6 +57,21 @@ def test_materialize_incremental_and_idempotent(tmp_path):
     assert materialize_wide(base=str(tmp_path))["appended_dates"] == 0
 
 
+def test_materialize_new_field_backfills_despite_incremental(tmp_path):
+    raw = tmp_path / "jquants" / "daily"; raw.mkdir(parents=True)
+    _raw_day(raw, "2024-01-04", ["7203"], [100.])
+    _raw_day(raw, "2024-01-05", ["7203"], [110.])
+    materialize_wide(fields=["close"], base=str(tmp_path))
+    # 後から volume を追加：旧実装（close 単独基準の skip）では既収録日が
+    # 全部飛ばされて volume が空のままになっていた → フィールド別判定で backfill
+    materialize_wide(fields=["close", "volume"], base=str(tmp_path))
+    vo = load_wide("volume", base=str(tmp_path))
+    assert vo.shape == (2, 1) and vo.loc["2024-01-04", "7203"] == 100.0
+    # 揃った後の再実行は冪等
+    assert materialize_wide(fields=["close", "volume"],
+                            base=str(tmp_path))["appended_dates"] == 0
+
+
 def test_rebuild_adjusted_split(tmp_path):
     raw = tmp_path / "jquants" / "daily"; raw.mkdir(parents=True)
     _raw_day(raw, "2024-01-04", ["7203"], [100.], adjf=[1.0])

@@ -59,17 +59,25 @@ def materialize_wide(fields: Optional[Iterable[str]] = None, base: str = "data",
                      incremental: bool = True) -> dict:
     """Raw by-date → フィールド別 wide（`processed/equities/wide/<field>.parquet`）。
 
-    incremental=True は「wide に未収録の日付だけ」を Raw から読み append（冪等）。新規上場は
-    列追加・退場は以降 NaN（生存者バイアス無しを自然保持）。
+    incremental=True は「**対象フィールド全部に**収録済みの日付だけ」をスキップして
+    Raw から読み append（冪等）。close 単独基準だと、後から追加したフィールドが
+    「close に収録済みの日付」を全部飛ばされて空のままになるため、フィールド別に
+    判定する（1つでも未収録ならその日付は再読込＝既収録フィールド側は同値上書きで
+    冪等）。新規上場は列追加・退場は以降 NaN（生存者バイアス無しを自然保持）。
     """
     out_dir = _wide_dir(base)
     out_dir.mkdir(parents=True, exist_ok=True)
     fields = list(_RAW_COL) if fields is None else list(fields)
     skip = None
-    close_fp = out_dir / "close.parquet"
-    if incremental and close_fp.exists():
-        have = pd.to_datetime(pd.read_parquet(close_fp).index)
-        skip = {d.strftime("%Y%m%d") for d in have}
+    if incremental:
+        mapped = [f for f in fields if f in _RAW_COL]
+        fps = [out_dir / f"{f}.parquet" for f in mapped]
+        if fps and all(fp.exists() for fp in fps):
+            sets = []
+            for fp in fps:                       # columns=[] で index だけ読む（軽量）
+                idx = pd.to_datetime(pd.read_parquet(fp, columns=[]).index)
+                sets.append({d.strftime("%Y%m%d") for d in idx})
+            skip = set.intersection(*sets)
     long = _read_raw_long(_raw_dir(base), skip_dates=skip)
     if long.empty:
         return {"appended_dates": 0, "fields": 0}

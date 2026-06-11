@@ -127,6 +127,11 @@ class TrialRegistry:
         同一 (scope, strategy_id, params) の再実行は新規カウントせず結果のみ更新
         （K を水増ししない）。新パラメータは新規試行＝K を増やす。仮説・経済的
         合理性は必須（a priori 理論の強制）。返り値 uuid。
+
+        注意：この経路の冪等性は「結果の**上書き**」で実現する（K は不変だが
+        sharpe 等は最新実行で置換される）。データ期間を変えた再実行も同一指紋＝
+        上書きになる。「一度きり・改竄不能」の厳密な追記専用保証が必要な試行は
+        preregister + record_result（二重記録を拒否）を使うこと。
         """
         if len(hypothesis.strip()) < _MIN_TEXT:
             raise ValueError("hypothesis is required (state the a priori theory)")

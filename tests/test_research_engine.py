@@ -4,7 +4,9 @@ import pandas as pd
 import pytest
 
 from invest_system.research.data_view import AsOfView
-from invest_system.research.engine import backtest, _ann_factor, open_fill_backtest
+from invest_system.research.engine import (
+    apply_rebalance_band, backtest, _ann_factor, open_fill_backtest,
+)
 from invest_system.research.strategy import (
     CrossSectionalStrategy, GapReversal, SignalTimingStrategy,
 )
@@ -204,6 +206,88 @@ def test_cost_panel_constant_equals_scalar():
     s = backtest(CrossSectionalStrategy(factor, 0.2), view, costs_bps=15.0)
     p = backtest(CrossSectionalStrategy(factor, 0.2), view, costs_bps=panel)
     pd.testing.assert_series_equal(s.returns, p.returns)
+
+
+# --- リバランス・デッドバンド（rebalance_band・docs/04 P2-A）------------------
+
+class _SeqStrategy:
+    """日付→ウェイトの逐次表を返すテスト用戦略。"""
+
+    name, params = "seq", {}
+
+    def __init__(self, table):
+        self._t = table
+
+    def target_weights(self, asof):
+        return self._t.get(asof.asof, pd.Series(dtype="float64"))
+
+
+def _band_view():
+    idx = pd.date_range("2024-01-01", periods=4, freq="D")
+    close = pd.DataFrame({"A": [100.0] * 4, "B": [100.0] * 4}, index=idx)
+    return idx, AsOfView({"close": close})
+
+
+def test_band_zero_matches_baseline():
+    idx, view = _band_view()
+    table = {idx[0]: pd.Series({"A": 0.5}), idx[1]: pd.Series({"A": 0.502}),
+             idx[2]: pd.Series({"A": 0.6})}
+    base = backtest(_SeqStrategy(table), view, costs_bps=10.0)
+    banded = backtest(_SeqStrategy(table), view, costs_bps=10.0,
+                      rebalance_band=0.0)
+    pd.testing.assert_series_equal(base.returns, banded.returns)
+    pd.testing.assert_series_equal(base.turnover, banded.turnover)
+
+
+def test_band_suppresses_small_orders_and_dust_exits():
+    idx, view = _band_view()
+    table = {idx[0]: pd.Series({"A": 0.5}),          # 初回建玉（band 超）
+             idx[1]: pd.Series({"A": 0.502}),        # |Δ|=0.002 < band → 据え置き
+             idx[2]: pd.Series({"A": 0.503})}        # 0.5 基準で |Δ|=0.003 < band
+    res = backtest(_SeqStrategy(table), view, costs_bps=10.0,
+                   rebalance_band=0.005)
+    assert res.turnover.loc[idx[0]] == pytest.approx(0.5)
+    assert res.turnover.loc[idx[1]] == pytest.approx(0.0)   # 微調整は取引しない
+    assert res.turnover.loc[idx[2]] == pytest.approx(0.0)   # 基準は保有（キャリー）
+    # ダスト清算の抑制：目標 0 でも |0 − 0.004| < band なら保有を維持
+    table2 = {idx[0]: pd.Series({"A": 0.004}), idx[1]: pd.Series(dtype="float64")}
+    res2 = backtest(_SeqStrategy(table2), view, costs_bps=10.0,
+                    rebalance_band=0.005)
+    assert res2.turnover.loc[idx[0]] == pytest.approx(0.0)  # 建玉自体が band 未満
+    assert res2.n_positions.loc[idx[1]] == 0
+
+
+def test_band_trades_when_delta_exceeds_threshold():
+    idx, view = _band_view()
+    table = {idx[0]: pd.Series({"A": 0.5}), idx[1]: pd.Series({"A": 0.6})}
+    res = backtest(_SeqStrategy(table), view, costs_bps=10.0,
+                   rebalance_band=0.005)
+    assert res.turnover.loc[idx[1]] == pytest.approx(0.1)   # band 超は全量執行
+
+
+def test_apply_rebalance_band_pure_function_matches_engine_semantics():
+    idx, view = _band_view()
+    table = {idx[0]: pd.Series({"A": 0.5, "B": -0.5}),
+             idx[1]: pd.Series({"A": 0.502, "B": -0.51}),
+             idx[2]: pd.Series({"B": -0.5})}
+    banded = apply_rebalance_band(table, 0.005)
+    assert banded[idx[1]]["A"] == pytest.approx(0.5)        # 据え置き
+    assert banded[idx[1]]["B"] == pytest.approx(-0.51)      # band 超は更新
+    assert "A" not in banded[idx[2]].index                  # |0−0.5|≥band → 清算
+    assert banded[idx[2]]["B"] == pytest.approx(-0.5)
+    ident = apply_rebalance_band(table, 0.0)                # band=0 は恒等
+    assert ident[idx[0]] is table[idx[0]]
+
+
+def test_band_applies_after_no_buy_carry():
+    # キャリー後ウェイト基準：ブロックで据え置かれた銘柄は band 判定でも据え置き。
+    idx, view = _band_view()
+    table = {idx[0]: pd.Series({"A": 0.5}), idx[1]: pd.Series({"A": 0.502})}
+    nb = pd.DataFrame(True, index=idx, columns=["A"])
+    res = backtest(_SeqStrategy(table), view, costs_bps=10.0,
+                   no_buy=nb, rebalance_band=0.005)
+    assert res.turnover.sum() == pytest.approx(0.0)          # 一度も建たない
+    assert int(res.n_blocked.loc[idx[0]]) == 1
 
 
 # --- T+1 始値執行リプレイ（open_fill_backtest・DP17）--------------------------

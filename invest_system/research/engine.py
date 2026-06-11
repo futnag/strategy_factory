@@ -68,12 +68,38 @@ def _one_way_cost(delta: pd.Series, when, costs_bps, panel_default: float) -> fl
     return float((delta.abs() * row).sum()) / 1e4
 
 
+def apply_rebalance_band(weights_by_date: dict, band: float) -> dict:
+    """リバランス・デッドバンド（cost-aware 実行フィルター・docs/04 P2-A・F1/D2）。
+
+    {決定日: 目標ウェイト Series} の時系列に対し、**実行後（キャリー）ウェイト**を基準に
+    |目標 − 保有| < band の銘柄は据え置く（取引しない）。閾値未満の微調整・ダスト清算に
+    コストを払わない＝回転率の抑制。band は執行の現実的運用でありシグナルではない
+    （意思決定は不変）。`open_fill_backtest` 等のリプレイ経路にはこの純関数を前段適用し、
+    `backtest` には同セマンティクスの `rebalance_band` 引数がある。band=0 は恒等変換。
+    """
+    if band <= 0:
+        return dict(weights_by_date)
+    out: dict = {}
+    prev = pd.Series(dtype="float64")
+    for t in sorted(weights_by_date, key=pd.Timestamp):
+        tgt = weights_by_date[t].astype(float)
+        names = tgt.index.union(prev.index)
+        cur = tgt.reindex(names).fillna(0.0)
+        prv = prev.reindex(names).fillna(0.0)
+        cur = cur.where((cur - prv).abs() >= band, prv)
+        w = cur[cur != 0.0]
+        out[t] = w
+        prev = w
+    return out
+
+
 def backtest(strategy: Strategy, view: AsOfView, *, price_field: str = "close",
              costs_bps: float = 15.0, rebalance=None, execution_lag: int = 0,
              adv: pd.DataFrame | None = None, participation: float = 0.1,
              no_buy: pd.DataFrame | None = None,
              no_sell: pd.DataFrame | None = None,
-             short_borrow_bps: float = 0.0) -> BacktestResult:
+             short_borrow_bps: float = 0.0,
+             rebalance_band: float = 0.0) -> BacktestResult:
     """戦略を回してネット損益系列を返す。
 
     execution_lag: 決定から執行までの遅延（バー数）。0=決定足の終値で執行（既定・
@@ -92,6 +118,10 @@ def backtest(strategy: Strategy, view: AsOfView, *, price_field: str = "close",
     short_borrow_bps: ショート想定元本に賦課する**年率**貸株コスト(bps)。日本の制度
       信用は貸株料約115bps＋逆日歩（不確定）が乗るため、保守見積もりで与える。
       期間按分（/年率係数）でネットから控除（gross には含めない）。
+    rebalance_band: リバランス・デッドバンド（DP・docs/04 P2-A）。|目標 − 保有| < band の
+      銘柄は据え置く＝閾値未満の微調整に取引コストを払わない。判定の基準は
+      **no_buy/no_sell キャリー適用後**のウェイト。0（既定）で従来どおり。
+      執行フィルタでありシグナルではない（意思決定は不変）。
     costs_bps: 片道コスト。スカラ bps か、**日付×銘柄の bps パネル**（執行バーの行を
       参照。ボラ連動スリッページ等の状態依存コスト＝`frictions.vol_scaled_cost_bps`）。
     """
@@ -140,6 +170,9 @@ def backtest(strategy: Strategy, view: AsOfView, *, price_field: str = "close",
             if bool(block.any()):
                 blocked_n = int(block.sum())
                 cur = cur.where(~block, prv)
+        if rebalance_band > 0 and len(names):
+            # デッドバンド：キャリー後ウェイト基準で閾値未満の注文は出さない
+            cur = cur.where((cur - prv).abs() >= rebalance_band, prv)
         w = cur[cur != 0.0]
         if len(w):
             r = float((w * fwd.loc[t].reindex(w.index)).sum())

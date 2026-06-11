@@ -188,7 +188,7 @@
 
 **追加の事前証拠**: G5(Neuhierl et al. 2023)に加え、AQR の Gupta-Kelly "Factor Momentum Everywhere" が「ファクター・モメンタムはあらゆるファクターベースポートフォリオで普遍的」と独立に示している(05 J3)。ただし Asness "Factor Timing is Hard"(2017)の「バリュエーションベースでは難しい・モメンタムに限る」という限定も併記すること(本タスクはモメンタム軸なので整合)。
 
-**完了基準**: [ ] 診断スクリプト(throwaway) [ ] 分離の有無の記録 [ ] docs/03 追記
+**完了基準**: [x] 診断スクリプト(`examples/research_factor_momentum_diag.py`) [x] 分離の有無の記録(§6.25: **一貫した分離なし**=value 符号方向のみ整合・PEAD 逆方向・TSMOM 無分離→ゲート化提案なし) [x] docs/03 §6.25 追記
 
 ## P3-G: IPCA(リスク補償 vs アノマリーの構造的切り分け)【新 scope・事前登録・K 計上】
 

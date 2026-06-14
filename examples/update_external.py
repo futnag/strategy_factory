@@ -31,8 +31,10 @@ def main() -> int:
         bp = "" if r["overlap_bp"] != r["overlap_bp"] else f" 照合{r['overlap_bp']:.0f}bp"
         print(f"  {r['key']:12s} {str(r['symbol']):10s} {r['status']:10s} "
               f"+{int(r['n_new'])}日 最終={r['last']}{bp}")
-    n_ok = int((rep["status"] == "OK").sum())
-    print(f"完了: {n_ok}/{len(rep)} キー更新")
+    n_ok = int(rep["status"].isin(["OK", "SEED"]).sum())
+    n_seed = int((rep["status"] == "SEED").sum())
+    tail = f"（うち初回シード {n_seed}）" if n_seed else ""
+    print(f"完了: {n_ok}/{len(rep)} キー更新{tail}")
     return 0 if n_ok > 0 else 1
 
 

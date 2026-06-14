@@ -116,13 +116,18 @@ def merge_new_dates(old: pd.DataFrame, new: pd.DataFrame, *,
 
 
 def update_external_prices(keys=None, *, base: str = "data", period: str = "3mo",
-                           tolerance: float = 0.02, fetch=None,
-                           cutoff: pd.Timestamp | None = None) -> pd.DataFrame:
+                           seed_period: str = "5y", tolerance: float = 0.02,
+                           fetch=None, cutoff: pd.Timestamp | None = None
+                           ) -> pd.DataFrame:
     """keys（既定 PHASE2_KEYS）を差分追記し、キー別レポートを返す。
 
     fetch は差し替え可能（テストはネット不要）。あるキーの失敗は残りを止めない
     （status 列に記録し、鮮度は reconcile の status.json で監視する）。
     cutoff: 既定 None = UTC 当日（形成中の日足を追記しない＝確定足のみ）。
+
+    既存ファイルが無いキーは**初回シード**（クラウド初回等）＝seed_period 分を取得し、
+    照合対象が無いため検証はスキップして土台を作る（status="SEED"）。シンボル表は
+    コードレビュー＋2026-06 実履歴照合済み。以降の追記は validate_overlap で通常どおり守る。
     """
     fetch = fetch or fetch_yahoo
     cutoff = _utc_today() if cutoff is None else pd.Timestamp(cutoff)
@@ -142,10 +147,22 @@ def update_external_prices(keys=None, *, base: str = "data", period: str = "3mo"
                    else pd.DataFrame(columns=_COLS))
             if len(old):
                 old.index = pd.to_datetime(old.index).normalize()
-            new = fetch(sym, period=period)
+            is_seed = old.empty
+            new = fetch(sym, period=(seed_period if is_seed else period))
             if new.empty:
                 row["status"] = "EMPTY"
                 row["last"] = old.index.max().date() if len(old) else None
+                rows.append(row)
+                continue
+            if is_seed:
+                # 既存履歴が無い＝初回シード。照合対象が無いので検証はスキップし、
+                # 検証済みシンボル表を信頼して土台を作る（確定足 cutoff は適用）。
+                merged, n_new = merge_new_dates(old, new, cutoff=cutoff)
+                if n_new:
+                    pdir.mkdir(parents=True, exist_ok=True)
+                    merged.to_parquet(fp)
+                row.update(status="SEED", n_new=n_new,
+                           last=merged.index.max().date() if len(merged) else None)
                 rows.append(row)
                 continue
             ok, diff, n = validate_overlap(old.get("close", pd.Series(dtype=float)),

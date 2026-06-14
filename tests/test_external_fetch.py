@@ -105,6 +105,29 @@ def test_update_external_prices_writes_and_rejects(tmp_path):
     pd.testing.assert_frame_equal(untouched, old, check_freq=False)  # 不採用＝不変
 
 
+def test_update_external_prices_bootstraps_empty_base(tmp_path):
+    # 既存ファイルが無いクラウド初回：照合対象ゼロでも長期取得して土台を作る（SEED）。
+    seen = {}
+
+    def fake(symbol, period="3mo"):
+        seen["period"] = period
+        return _frame("2021-01-04", 400, cols=False)        # 長期シード相当
+
+    rep = update_external_prices(["gold"], base=str(tmp_path), fetch=fake,
+                                 cutoff=pd.Timestamp("2026-01-01")).set_index("key")
+    assert rep.loc["gold", "status"] == "SEED"
+    assert int(rep.loc["gold", "n_new"]) == 400             # 全期間が土台になる
+    assert seen["period"] == "5y"                           # シードは長期取得
+    saved = pd.read_parquet(tmp_path / "investers" / _PRICE_FILES["gold"])
+    assert len(saved) == 400 and "change_pct" in saved.columns
+    # 2回目（土台あり）は通常の検証付き追記＝SEED ではなく OK
+    rep2 = update_external_prices(["gold"], base=str(tmp_path),
+                                  fetch=lambda s, period="3mo": _frame(
+                                      "2021-01-04", 405, cols=False),
+                                  cutoff=pd.Timestamp("2026-01-01")).set_index("key")
+    assert rep2.loc["gold", "status"] == "OK" and rep2.loc["gold", "n_new"] == 5
+
+
 def test_update_external_prices_survives_fetch_error(tmp_path):
     (tmp_path / "investers").mkdir(parents=True)
     _frame("2026-01-05", 30).to_parquet(

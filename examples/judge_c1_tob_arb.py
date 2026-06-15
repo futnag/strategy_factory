@@ -56,7 +56,7 @@ RATIONALE = ("スプレッド=不成立リスクのプレミアム（merger arb�
 
 def wide_panels(codes: set, start: str) -> dict:
     fields = {"C": "close", "O": "open", "H": "high", "L": "low", "UL": "ul",
-              "LL": "ll", "Vo": "vol"}
+              "LL": "ll", "Vo": "vol", "Va": "val"}     # Va=売買代金(¥)＝容量算出
     rows = []
     for p in sorted(glob.glob(f"{JQ_DAILY}/*.parquet")):
         if Path(p).stem < start:
@@ -135,6 +135,44 @@ def cell_series(deals: pd.DataFrame, close: pd.DataFrame,
     return pf.fillna(0.0)
 
 
+def cell_capacity(deals: pd.DataFrame, val: pd.DataFrame, participation: float = 0.10,
+                  adv_lookback: int = 60, q: float = 0.25) -> float:
+    """セルの実用 AUM(¥)：案件別の拘束 AUM = p × ADV_d × min_t(N_active,t∈hold_d) の
+    下側分位点（既定 p25＝75% の案件が参加率内に収まる規模・docs/09 §6.4）。
+
+    strict-min は単一の超低流動 micro-cap（held alone）に支配され無意味＝そういう銘柄は
+    スキップ前提で分位点を採る。ADV_d=エントリー前 adv_lookback 取引日の売買代金中央値
+    （PIT・取引前のみ）。同時建玉が少ない（集中）日ほど weight が大きく制約がきつい。
+    """
+    if deals.empty:
+        return float("nan")
+    iv = [(r["entry_date"], r["exit_date"]) for _, r in deals.iterrows()]
+
+    def n_active(day):
+        return sum(1 for e, x in iv if e <= day < x) or 1
+
+    caps = []
+    for _, r in deals.iterrows():
+        if r["sec"] not in val.columns:
+            continue
+        pre = val[r["sec"]].dropna()
+        pre = pre[pre.index < r["entry_date"]].tail(adv_lookback)
+        adv = float(pre.median()) if len(pre) else float("nan")
+        if not (adv > 0):
+            continue
+        hold = [d for d in val.index if r["entry_date"] <= d < r["exit_date"]]
+        caps.append(participation * adv * min((n_active(d) for d in hold), default=1))
+    return float(pd.Series(caps).quantile(q)) if caps else float("nan")
+
+
+def _fmt_jpy(x: float) -> str:
+    if not (x == x):
+        return "—"
+    if x >= 1e8:
+        return f"¥{x/1e8:.1f}億"
+    return f"¥{x/1e4:.0f}万"
+
+
 def cells_of(sched_sub: pd.DataFrame) -> list:
     out = []
     for comp_label, comp_vals in [("excl", [False]), ("incl", [True, False])]:
@@ -175,6 +213,7 @@ def main() -> int:
                          "psr": probabilistic_sharpe_ratio(sr, 0.0, n, sk, ku),
                          "dsr": reg.deflated_sharpe(uid),
                          "mean_ann": pf.mean() * ANN,
+                         "cap": cell_capacity(sub, panels["val"]),
                          "uid": uid})
 
     k = reg.trial_count(SCOPE)
@@ -183,18 +222,19 @@ def main() -> int:
     mbtl = min_backtest_length(k, 1.0)
 
     print(f"\n=== scope `{SCOPE}` 判定（K={k}＝格子8＋scan{EXTRA_TRIALS}・DSR闾値 {DSR_PASS}）===")
-    print(f"{'cell':30s} {'n':>3} {'obs':>4} {'SR_ann':>7} {'平均/年':>7} {'PSR':>5} {'DSR':>5}")
+    print(f"{'cell':34s} {'n':>3} {'SR_ann':>7} {'平均/年':>7} {'DSR':>5} {'容量@10%':>9}")
     passed = []
     for r in recs:
-        flag = "  ◎PASS" if r["dsr"] >= DSR_PASS else ""
+        flag = " ◎PASS" if r["dsr"] >= DSR_PASS else ""
         if r["dsr"] >= DSR_PASS:
             passed.append(r["cell"])
-        print(f"{r['cell']:30s} {r['n_deals']:3d} {r['n_obs']:4d} {r['sr_ann']:+7.2f} "
-              f"{r['mean_ann']:+6.1%} {r['psr']:5.2f} {r['dsr']:5.2f}{flag}")
+        print(f"{r['cell']:34s} {r['n_deals']:3d} {r['sr_ann']:+7.2f} "
+              f"{r['mean_ann']:+6.1%} {r['dsr']:5.2f} {_fmt_jpy(r['cap']):>9}{flag}")
     print(f"\nPBO(CSCV, 8セル)={pbo:.2f}  MinBTL={mbtl:.1f}年  累積K={k}")
     print(f"判定：{'PASS ' + ','.join(passed) if passed else '全セル FAIL（DSR<%.2f）' % DSR_PASS}")
     print("\n注：成立=買付価格テンダー・不成立=ギャップ取込・始値エントリー・ロック23%スキップ・"
-          "等加重キャッシュドラッグ。容量(adv)は別段。")
+          "等加重キャッシュドラッグ。容量@10%＝案件別拘束AUM(p×ADV×min同時建玉)のp25"
+          "（75%の案件が参加率10%内・残りはスキップ）＝小資本限定でスケールしない。")
     return 0
 
 

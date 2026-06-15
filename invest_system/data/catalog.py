@@ -11,6 +11,7 @@ from typing import Callable, Optional
 
 import pandas as pd
 
+from .sources import edinet as ed
 from .sources import jquants as jq
 
 
@@ -102,4 +103,16 @@ def _refresh_indices(start: str, until: str) -> int:
 REFRESH_DATASETS: dict[str, RefreshSpec] = {
     "investor_types": RefreshSpec("investor_types", _refresh_investor_types),
     "indices": RefreshSpec("indices", _refresh_indices),
+}
+
+
+# --- EDINET（開示書類一覧の by-date ミラー） -------------------------------
+# 別ベース（data/edinet・別キー EDINET_API_KEY）のため上の DATASETS（base=data/jquants）
+# とは分離する。既定の J-Quants 夜間更新を乱さないよう、専用 DataUpdater
+# （base="data/edinet"）で回す＝examples/edinet_update.py。Phase 2 夜間ジョブ（ops repo）
+# には同スクリプト相当を追加する。cache 名は {YYYYMMDD}.parquet（_plain_date で日付化）。
+EDINET_DATASETS: dict[str, Dataset] = {
+    "edinet_docs": Dataset(
+        "edinet_docs", "daily", "list",
+        lambda d: ed.fetch_documents_list(d), _plain_date),
 }

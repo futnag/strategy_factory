@@ -1,0 +1,36 @@
+group_slug,canonical_group,display_name,edinet_codes,style,aliases,note
+effissimo,effissimo,エフィッシモ・キャピタル,E11852,engagement_hard,エフィッシモ;Effissimo;エフィッシモキャピタルマネージメント,
+city_index_elevenths,murakami,シティインデックスイレブンス(村上系),E35393;E40184;E24231,engagement_hard,シティインデックスイレブンス;シティインデックス;City Index Eleventh;レノ;Reno;シティインデックスファースト,村上系。city11/cityfirst/reno同系
+minami_aoyama,murakami,南青山不動産(村上系),,engagement_hard,南青山不動産;南青山,村上系。コード要特定
+strategic_capital,strategic_capital,ストラテジックキャピタル,E27325,engagement_hard,ストラテジックキャピタル;Strategic Capital;ストラテジック,
+3d_investment,3d_investment,3D Investment Partners,E33309,engagement_hard,3D Investment;3Dインベストメント;スリーディー,search不可・コード既知
+oasis,oasis,Oasis Management Company,,engagement_hard,Oasis;オアシス;Oasis Management;オアシスマネジメント,大型多数。コード要特定
+elliott,elliott,エリオット,E35450,engagement_hard,エリオット;Elliott;エリオットマネジメント;Elliott Management,
+valueact,valueact,ValueAct Capital,E34138,engagement_hard,ValueAct;バリューアクト,コードはEDINET本体実測(2026-06)
+nippon_active_value,nippon_active_value,NIPPON ACTIVE VALUE FUND(NAVF),E36104,engagement_hard,NIPPON ACTIVE VALUE;NAVF;ニッポンアクティブバリュー,ダルトン系。コードはEDINET本体実測(2026-06)
+misaki,misaki,みさき投資,E32221,engagement_soft,みさき投資;みさき;Misaki,
+avi,avi,アセット・バリュー・インベスターズ,E34595,engagement_soft,AVI;Asset Value Investors;アセットバリューインベスターズ;AJOT,
+dalton_llc,dalton,ダルトン・インベストメンツ LLC,E08827,engagement_soft,Dalton;ダルトン;ダルトンインベストメンツ,E39237と同系・dedup
+dalton_inc,dalton,ダルトン・インベストメンツ Inc,E39237,engagement_soft,Dalton;ダルトン;ダルトンインベストメンツ,E08827と同系・dedup
+hibiki,hibiki,ひびき・パース・アドバイザーズ,,engagement_hard,ひびき;Hibiki Path;ひびきパース,SPC名義あり
+varecs,varecs,ヴァレックス・パートナーズ,,engagement_hard,ヴァレックス;Varecs,
+kaname,kaname,カナメ・キャピタル,E37907,engagement_hard,カナメ;Kaname,コードはEDINET本体実測(2026-06)
+ichigo,ichigo,いちごアセットマネジメント,,engagement_soft,いちご;Ichigo Asset,
+orbis,orbis,オービス・インベストメント,,engagement_soft,オービス;Orbis,
+symphony,symphony,シンフォニー・フィナンシャル・パートナーズ,,engagement_soft,シンフォニー;Symphony Financial,
+ariake,ariake,ありあけキャピタル,,engagement_hard,ありあけ;Ariake,
+gmo,gmo,グランサム・マヨ(GMO),,engagement_soft,グランサムマヨ;GMO;Grantham Mayo,
+doe5,doe5,DOE5パーセント,E39020,engagement_hard,DOE5;DOE5パーセント,配当性向向上特化
+fundnote,fundnote,fundnote,E40155,engagement_hard,fundnote;ファンドノート,
+be_brave,be_brave,Be Brave,E37710,engagement_hard,Be Brave;ビーブレイブ,コードはEDINET本体実測(2026-06)
+axium,axium,AXIUM CAPITAL,E40713,engagement_hard,AXIUM;アクシウム,コードはEDINET本体実測(2026-06)
+silvercape,silvercape,SilverCape Investments,,engagement_hard,SilverCape,
+old_peak,old_peak,Old Peak Group,E34245,engagement_hard,Old Peak,コードはEDINET本体実測(2026-06)
+miri,miri,MIRI Capital Management,E36529,engagement_hard,MIRI;ミリキャピタル,コードはEDINET本体実測(2026-06)
+zenner,zenner,ゼナーアセットマネジメント,,engagement_hard,ゼナー;Zenner,
+ugs,ugs,UGSアセットマネジメント,E32101,engagement_hard,UGS,コードはEDINET本体実測(2026-06)
+s_grant,s_grant,エスグラントコーポレーション,,engagement_hard,エスグラント;エスグラントコーポレーション,
+global_mgmt,global_mgmt,GLOBAL MANAGEMENT PARTNERS,,engagement_hard,GLOBAL MANAGEMENT PARTNERS;グローバルマネジメント,
+mi2,mi2,MI2,E38425,engagement_hard,MI2,コードはEDINET本体実測(2026-06)
+taiyo,taiyo,タイヨウ・パシフィック・パートナーズ,E37410,engagement_soft,Taiyo Pacific;タイヨウパシフィック;Taiyo,purposeフィルタで母集団入り・名簿追記(2026-06)
+ueshima,ueshima,植島幹九郎(個人アクティビスト),,engagement_hard,植島;植島幹九郎,個人

@@ -8,7 +8,7 @@ throwaway**）。
 
 実装：`equities/price_factors.py`（純関数）／`data/feature_store.py: build_price_liquidity_features`
 （月次PIT材化）。標準化・中立化は `factors.py`（`cross_sectional_zscore`/`cross_sectional_rank`/
-`sector_neutralize`）を**再利用**（再実装しない）。テスト：`tests/test_price_factors.py`（8件）。
+`sector_neutralize`）を**再利用**（再実装しない）。テスト：`tests/test_price_factors.py`（9件）。
 関連：[03 研究知見](03-research-findings.md) §5、[14 EDINET ファンダ](14-edinet-fundamentals.md)。
 
 ---

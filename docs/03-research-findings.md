@@ -264,6 +264,10 @@ Standard 提供の全データセットを**全営業日 by-date ミラー**（2
   （XBRL→CSV）を一次ソースに、財務三表を**提出日アンカーの as-of パネル**へ統合し、CF系・BS明細系の
   特徴量（FCF利回り/ROIC/資産成長/アクルーアル/レバレッジ/R&D集約度等）を解禁（GKX Phase 2）。
   `data/edinet/`（gitignore）。詳細は [14 EDINET ファンダ](14-edinet-fundamentals.md)。
+- **価格系・流動性系ファクター（Phase 1・J-Quants 日次のみ）**：多ホライズン・モメンタム/短期・長期
+  リバーサル/各種ボラ/特異ボラ/ベータ/MAX と Amihud/回転率/売買代金/ゼロ日を `equities/price_factors.py`
+  に追加し、`feature_store` で月次 PIT・float32・[-1,1]ランク/セクター中立として材化（GKX Phase 1）。
+  詳細は [15 価格・流動性ファクター](15-price-liquidity-factors.md)。
 - **ファンダ panel 組立**（`equities/fundamentals.py`）：`load_fundamentals()` が by-date ミラー
   `fins_summary/`（＋旧 by-code `statements/`）を併合・重複除去して長形式で返し、
   `fundamentals_panel()` が `point_in_time`（DiscDate≤t−lag のみ採用）で**全ユニバースの as-of

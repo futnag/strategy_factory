@@ -129,8 +129,99 @@ def build_regime(base: str = "data", vol_window: int = 60, trend_window: int = 2
     return {"regime": [int(reg.shape[0]), int(reg.shape[1])]}
 
 
+def _equal_weight_market(adj_close: pd.DataFrame) -> pd.Series:
+    """等加重マーケット日次リターン（build_regime と同一規約・ivol/beta の市場系列）。"""
+    return adj_close.pct_change().mean(axis=1)
+
+
+def _load_sector() -> pd.Series:
+    """S33 業種（index=Code・equities_master）。未取得なら空 Series。業種モメンタム/中立化用。"""
+    try:
+        from ..data.sources import jquants as jq
+        listed = jq.fetch_listed_info()
+    except Exception:  # noqa: BLE001
+        return pd.Series(dtype=object)
+    if listed.empty or "S33" not in listed.columns:
+        return pd.Series(dtype=object)
+    return listed.assign(Code=listed["Code"].astype(str)).set_index("Code")["S33"]
+
+
+def _monthly_turnover(va: pd.DataFrame, base: str, month_ends, window: int = 60):
+    """回転率（月次）：trailing60日平均Va / 月末時価総額に負号。
+
+    時価総額=生株価×(発行済−自己株式)。株数は fins_summary の as-of（J-Quants・EDINET非依存）。
+    株価/株数が無ければ None（turnover をスキップ）。
+    """
+    from ..equities import fundamentals as fu
+    raw_close = load_wide("close", base=base)
+    if raw_close.empty or not month_ends:
+        return None
+    sh = fu.fundamentals_panel(list(month_ends), ["ShOutFY", "TrShFY"])
+    if "ShOutFY" not in sh:
+        return None
+    shares = sh["ShOutFY"].sub(sh.get("TrShFY", 0.0), fill_value=0.0)
+    shares = shares.where(shares > 0)
+    close_me = raw_close.resample("ME").last().reindex(index=month_ends)
+    mcap_me = (close_me * shares).where(lambda x: x > 0)
+    avg_va_me = (va.rolling(window, min_periods=max(2, int(window * 0.8))).mean()
+                 .resample("ME").last().reindex(index=month_ends))
+    common = mcap_me.columns.intersection(avg_va_me.columns)
+    return -(avg_va_me[common] / mcap_me[common])
+
+
+def build_price_liquidity_features(base: str = "data", monthly: bool = True) -> dict:
+    """価格系・流動性系（GKX Phase 1）を月次 PIT で materialize（float32・wide）。
+
+    日次で計算（trailing 窓・先読みなし）→ 月末（暦月の最終営業日値）に as-of サンプリング
+    （monthly=True）。市場=等加重・業種=S33・回転率の時価総額=生株価×as-of株数。raw を書き出し、
+    [-1,1]ランク版/セクター中立版は price_factor_view() で既存ユーティリティから生成する。
+    """
+    from ..equities import price_factors as pf
+    adj = load_wide("adj_close", base=base)
+    if adj.empty:
+        return {}
+    adj = adj.sort_index()
+    va = load_wide("turnover", base=base)            # Va=売買代金（Silver の turnover フィールド）
+    sector = _load_sector()
+    fac = pf.compute_all(adj, va=(None if va.empty else va),
+                         market=_equal_weight_market(adj), mcap=None,
+                         sector=(None if sector.empty else sector))
+    out: dict[str, list] = {}
+    month_ends = list(adj.resample("ME").last().index) if monthly else None
+    for name, df in fac.items():
+        m = df.resample("ME").last() if monthly else df
+        _write(m.astype("float32"), name, base)
+        out[name] = [int(m.shape[0]), int(m.shape[1])]
+    if not va.empty and monthly:                     # 回転率は月末時価総額と合成して別途
+        tov = _monthly_turnover(va, base, month_ends)
+        if tov is not None and not tov.empty:
+            _write(tov.astype("float32"), "turnover", base)
+            out["turnover"] = [int(tov.shape[0]), int(tov.shape[1])]
+    return out
+
+
+def price_factor_view(name: str, view: str = "rank", base: str = "data") -> pd.DataFrame:
+    """材化済み price/liquidity ファクターの 3 ビュー（raw/zscore/rank/sector_neutral）を生成。
+
+    既存ユーティリティ（factors.cross_sectional_zscore/cross_sectional_rank/sector_neutralize）を
+    再利用。raw は材化値そのまま。sector_neutral は S33 内デミーン。
+    """
+    from ..equities import factors as fac
+    df = load_feature(name, base=base)
+    if df.empty or view == "raw":
+        return df
+    if view == "zscore":
+        return fac.cross_sectional_zscore(df)
+    if view == "rank":
+        return fac.cross_sectional_rank(df)
+    if view == "sector_neutral":
+        return fac.sector_neutralize(df, _load_sector())
+    raise ValueError(f"unknown view: {view}")
+
+
 def materialize_features(base: str = "data") -> dict:
-    """Features 層の標準 materialize（価格特徴 → レジーム）。再計算で冪等。"""
+    """Features 層の標準 materialize（価格特徴 → レジーム → 価格/流動性ファクター）。再計算で冪等。"""
     rep = {"price": build_price_features(base=base)}
     rep["regime"] = build_regime(base=base)
+    rep["price_liquidity"] = build_price_liquidity_features(base=base)
     return rep

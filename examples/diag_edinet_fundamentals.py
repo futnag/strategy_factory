@@ -5,6 +5,7 @@ K 不変。新特徴量の予測力を見たいだけの使い捨て計測（IC�
 バックフィル進行中はキャッシュ済み有報のぶんだけ集計され、完走に向けて数値が埋まる。
 
 手元実行: .venv/Scripts/python.exe examples/diag_edinet_fundamentals.py
+  --edinetdb [N]  … 補助 edinetdb で official 値を独立クロスチェック（先頭 N 銘柄・100/日消費）
 """
 from __future__ import annotations
 
@@ -110,6 +111,31 @@ def monthly_ic() -> None:
                   f"  (被覆<8銘柄/月)")
 
 
+def reconcile_vs_edinetdb(long: pd.DataFrame, n: int) -> None:
+    """補助 edinetdb で official パース値を独立クロスチェック（先頭 N 銘柄・quota 消費）。"""
+    from invest_system.config import get_env
+    from invest_system.data.sources import edinetdb as edb
+    if not get_env("EDINET_DB_API_KEY"):
+        print("\n（edinetdb: EDINET_DB_API_KEY 未設定 → 3-way 突合スキップ）")
+        return
+    print(f"\n=== official EDINET vs edinetdb 突合（先頭 {n} 銘柄・100/日消費）===")
+    s2e = edb.seccode_to_edinet()
+    codes = [c for c in long["Code"].dropna().unique() if c in s2e][:n]
+    tally: dict[str, int] = {"OK": 0, "WARN": 0, "MISS": 0}
+    for c in codes:
+        if edb.remaining_quota() <= 0:
+            print("  日次クォータ上限 → 中断（翌日に）")
+            break
+        try:
+            rec = edb.reconcile(long[long["Code"] == c], edb.fetch_financials(s2e[c]))
+        except Exception as e:  # noqa: BLE001
+            print(f"  {c}: {str(e)[:50]}")
+            continue
+        for f, v in rec["flag"].value_counts().items():
+            tally[f] = tally.get(f, 0) + int(v)
+    print(f"  集計 {tally}  残quota {edb.remaining_quota()}")
+
+
 def main() -> None:
     long = ef.build_edinet_long(verbose=True)
     if long.empty:
@@ -121,6 +147,10 @@ def main() -> None:
     coverage_by_year_basis(long)
     reconcile_vs_jquants(long)
     monthly_ic()
+    if "--edinetdb" in sys.argv:                      # opt-in（quota 消費）
+        i = sys.argv.index("--edinetdb")
+        n = int(sys.argv[i + 1]) if i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit() else 5
+        reconcile_vs_edinetdb(long, n)
     print("\n※ K 不変・throwaway 診断（戦略認定ではない）。被覆はバックフィル完走で埋まる。")
 
 

@@ -28,7 +28,8 @@ López de Prado 由来の検証ファクトリを GKX（Gu, Kelly & Xiu 2020）�
   日々取得不能になる → `download_edinet.py` は **最古年優先（periodEnd 昇順）**でバックフィルし、
   落ちる前に確保する。窓外の数日は 404（無害）。
 - 大規模取得は **手元ターミナルで直接実行**（`examples/download_edinet.py`・進捗・中断再開可）。
-- 補助 edinetdb.jp は **クロスチェック・公式窓から落ちた古年の穴埋め・セグメント**に限定（バルク不可）。
+- 補助 edinetdb.jp（`edinetdb.py`・`X-API-Key`・100/日）は **クロスチェックと公式窓外の古年
+  （FY2012-2015）穴埋め**に限定（バルク不可）。**セグメント専用エンドポイントは Free REST に無い**（§9）。
 - データ（`data/edinet/`）は **gitignore**。コミット可はコード・マッピング・クロスウォークのみ。
 
 ---
@@ -139,7 +140,8 @@ OK 多数・WARN 1・MISS 2 で一貫。**IFRS/JGAAP の本体値は完全一致
    無借金（任天堂・キーエンス）は 0。
 4. **net_share_issuance の分割調整未実施**：raw 発行株数の前年比のため分割年は過大に出る
    （J-Quants `AdjustmentFactor` での補正は今後）。
-5. **セグメント系は未実装**：注記パース or 補助 edinetdb `get_segments` が必要（保留）。
+5. **セグメント系は未実装**：有報注記のパースが必要（保留）。補助 edinetdb の Free REST にも
+   セグメント専用エンドポイントは無い。
 6. **ローリング 10 年窓**：最古年は逐次取得不能化。バックフィルは最古年優先で対抗。
 7. **FCF の M&A 歪み**：FCF は買収年に大振れ → 3 年平均＋`ma_year` フラグで対応。
 8. **訂正報告**：原報告を原提出日で採用し、訂正は訂正提出日以降にのみ反映（point_in_time が
@@ -152,3 +154,26 @@ OK 多数・WARN 1・MISS 2 で一貫。**IFRS/JGAAP の本体値は完全一致
 本タスクはデータ基盤整備であり戦略探索ではない。`judge_grid`・永続レジストリは一切触らず、
 予測力確認は `diag_edinet_fundamentals.py` の **throwaway 診断（月次IC・被覆率・突合）**に留める。
 新規 DSR 判定は Phase 4 で一度だけ。`examples/registry_status.py` で K 不変を確認できる。
+
+---
+
+## 9. 補助ソース edinetdb.jp（`data/sources/edinetdb.py`）
+
+公式 EDINET（一次）の **独立クロスチェック** と **古年穴埋め** に限定した補助。**バルク不可**
+（Free=100req/日）。ベース `https://edinetdb.jp/v1`・認証ヘッダ `X-API-Key`（`.env` の
+`EDINET_DB_API_KEY`）・チャット側 MCP には依存しない。**日次クォータを永続カウント**
+（`data/edinet/edinetdb/quota.json`・既定上限 95）し、上限で `QuotaExceeded`（翌日に回す）。
+キャッシュ命中は quota を消費しない。
+
+- `/companies/{EDINETコード}/financials`：**FY2012〜最新**の時系列（accounting_standard・revenue・
+  operating_income・net_income・total_assets・net_assets・cf_*・shares_issued・split_adjustment_factor 等）。
+  **生ライン項目のみ**採り、加工済み比率（roe_official 等）は使わない。
+- **クロスチェック実測**：トヨタ FY2023-2026 × 10 項目で **比較可能 36 項目すべて rel_diff=0.0 で
+  完全一致**（公式パースの独立検証）。不一致は ordinary_income のみ＝IFRS に経常利益が無いための
+  定義差（公式 NaN／edinetdb は別流儀で保持）。`diag_edinet_fundamentals.py --edinetdb N` で
+  N 銘柄を 3-way（official／edinetdb／J-Quants）突合できる。
+- **古年穴埋め**：公式の ~10 年窓（2016+）より古い **FY2012-2015** を `old_year_backfill` で補える。
+- **コードクロスウォーク**：実コードは EDINET コード（E始まり）。secCode(5桁)→EDINET コードは
+  一覧ミラーの edinetCode↔secCode（`seccode_to_edinet`・quota 不要）で変換。
+- 限界：segments・interest_bearing_debt は Free REST に無い。net_assets は edinetdb=自己資本
+  （owners）で公式の total equity と定義が異なるため突合対象外。

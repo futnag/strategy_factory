@@ -30,6 +30,19 @@ def test_momentum_and_reversal_formulas():
     assert np.allclose(rev.dropna().values, (-(px / px.shift(21) - 1.0)).dropna().values)
 
 
+def test_long_term_reversal_skips_recent_12m():
+    px = _prices(n=900)                                 # 36M=756 営業日 + バッファ
+    ltr = pf.mom_36m_reversal(px)
+    exp = -(px.shift(12 * pf.MONTH) / px.shift(36 * pf.MONTH) - 1.0)
+    assert np.allclose(ltr.dropna().values, exp.dropna().values)
+    # 直近 12M スキップ＝最新月の価格を改変しても最新断面の値は不変（短期リバーサルと非重複）
+    px2 = px.copy()
+    px2.iloc[-pf.MONTH:] *= 1.3
+    last = ltr.dropna().index[-1]
+    assert np.allclose(pf.mom_36m_reversal(px).loc[last].values,
+                       pf.mom_36m_reversal(px2).loc[last].values, equal_nan=True)
+
+
 def test_realized_vol_matches_feature_store_vol_negated():
     # 既存 feature_store の vol_20 = ret.rolling(20).std()*sqrt(252)。新 realized_vol は同式の負号。
     px = _prices()

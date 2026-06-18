@@ -35,7 +35,11 @@ def _ret(adj_close: pd.DataFrame) -> pd.DataFrame:
 
 
 def _mp(window: int) -> int:
-    """完全窓に近い最小観測数（不完全窓は NaN）。"""
+    """準完全窓の最小観測数（窓の 80%。不完全窓は NaN）。
+
+    residual_momentum の「完全窓要求」より緩い**意図的**選択（祝日・上場直後で過度に NaN を
+    出さないため）。コードベース内で厳密さの規約が一様でない点は docs/15 §4 に明記。
+    """
     return max(2, int(window * 0.8))
 
 
@@ -56,8 +60,13 @@ def mom_6m(adj_close: pd.DataFrame) -> pd.DataFrame:
 
 
 def mom_36m_reversal(adj_close: pd.DataFrame) -> pd.DataFrame:
-    """長期リバーサル：過去 36 ヶ月リターンに負号（De Bondt-Thaler 1985）。"""
-    return -(adj_close / adj_close.shift(36 * MONTH) - 1.0)
+    """長期リバーサル：形成期 t-36M〜t-12M のリターンに負号（De Bondt-Thaler 1985）。
+
+    **直近 12 ヶ月をスキップ**＝12-1 モメンタムと短期(1M)リバーサルから明確に分離する
+    （Chen-Zimmermann の LRreversal 規約に整合）。スキップしないと最新月で mom_1m_reversal と
+    重複する。t は ≤t-12M の価格のみ＝先読みなし。
+    """
+    return -(adj_close.shift(12 * MONTH) / adj_close.shift(36 * MONTH) - 1.0)
 
 
 def industry_momentum(adj_close: pd.DataFrame, sector: pd.Series,
@@ -114,7 +123,8 @@ def idiosyncratic_vol(adj_close: pd.DataFrame, market: Optional[pd.Series] = Non
     """特異ボラ（年率）に負号（Ang-Hodrick-Xing-Zhang 2006：高 ivol→低リターン）。
 
     市場（既定=等加重）への trailing 単回帰残差の標準偏差。残差分散は var(ret)-β²var(mkt) で
-    閉形式（自己条件付けを避けるための per-t trailing 推定）。高い（負号後）=低 ivol=ロング側。
+    閉形式。per-t trailing は**先読み**を避ける（自己条件付けは避けない）。市場は等加重で自銘柄を
+    含むが、N が大きく自己包含バイアスは ~1/N で実質無視できる。高い（負号後）=低 ivol=ロング側。
     """
     ret = _ret(adj_close)
     mkt = market if market is not None else ret.mean(axis=1)
@@ -160,6 +170,8 @@ def turnover(va: pd.DataFrame, mcap: pd.DataFrame, window: int = 60) -> pd.DataF
     """回転率：trailing 平均 Va / 時価総額に負号（高回転→低リターン：Datar-Naik-Radcliffe 1998）。
 
     高い（負号後）=低回転=ロング側。mcap は生株価×（発行済−自己株）。
+    **命名注意**：引数 `va` は Silver の `turnover` フィールド（=売買代金 Va）。本関数名 turnover は
+    「回転率（Va/時価総額）」で別概念＝同名衝突に注意（コードは使い分け済み）。
     """
     avg_va = va.rolling(window, min_periods=_mp(window)).mean()
     return -(avg_va / mcap.where(mcap > 0))

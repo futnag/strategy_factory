@@ -42,7 +42,7 @@ throwaway**）。
 | mom_1m_reversal | −(adj/adj₋₁ₘ−1) | 1M | Jegadeesh 1990（短期リバーサル） |
 | mom_3m | adj₋₁ₘ/adj₋₃ₘ−1 | 3M(skip1M) | Jegadeesh-Titman 1993 |
 | mom_6m | adj₋₁ₘ/adj₋₆ₘ−1 | 6M(skip1M) | 同上 |
-| mom_36m_reversal | −(adj/adj₋₃₆ₘ−1) | 36M | De Bondt-Thaler 1985（長期リバーサル） |
+| mom_36m_reversal | −(adj₋₁₂ₘ/adj₋₃₆ₘ−1)（**直近12Mスキップ**） | 36M→12M | De Bondt-Thaler 1985 / Chen-Zimmermann LRreversal |
 | industry_momentum | S33 業種 等加重 12-1 を構成銘柄へ | 12M(skip1M) | Moskowitz-Grinblatt 1999 |
 | rvol_60 / rvol_252 | −年率実現ボラ | 60/252 | Ang ら 2006 / BBW 2011（低ボラ） |
 | ivol | −年率 特異ボラ（市場単回帰残差・var(ret)−β²var(mkt) の閉形式） | 252 | AHXZ 2006 |
@@ -86,6 +86,16 @@ PIT ユニバース（上位500・lookback12M）・121 月（2016-06〜2026-06�
   財務未取得の銘柄は NaN（最新月で ~3,600 銘柄）。
 - **歪度の窓=252 に固定**（1M 版は MAX が担う）。窓のチューニング探索はしない（p-hacking 回避）。
 - **月次サンプリング**：日次で計算し暦月末の最終営業日値を採る。日次・イベント系の用途は別途。
+- **業種モメンタムは S33 の現時点スナップショット**（時変業種でない＝sector-PIT 限界・docs/03 §6.24 と
+  整合）。業種日次リターンは `fillna(0.0)`（欠損日を 0 リターン扱い）。
+- **準完全窓（min_periods=0.8×窓）**：`residual_momentum` の「完全窓要求」より緩い**意図的**選択
+  （祝日・上場直後で過度に NaN を出さないため）。コードベース内で窓の厳密さ規約は一様でない。
+- **β/ivol の市場系列は自銘柄を含む等加重**（leave-one-out でない）。N≈5,000 で自己包含バイアスは
+  ~1/N＝無視可。per-t trailing は先読みを避けるが自己条件付けは避けない（実害は無視可）。
+- **共分散の NaN 端点**：窓内に銘柄リターンの散発欠損があると E[r·m]/E[r] と var(mkt) の平均日集合が
+  僅かにずれる（ほぼ完全なパネルでは無視可。上場直後・売買停止の多い小型で留意）。
+- **命名衝突**：Silver フィールド `turnover`（=売買代金 Va）とファクター `turnover`（=回転率
+  Va/時価総額）が同名（コードは使い分け済み）。
 
 ---
 

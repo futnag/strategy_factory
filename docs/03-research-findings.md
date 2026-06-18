@@ -260,6 +260,10 @@ Standard 提供の全データセットを**全営業日 by-date ミラー**（2
 | 株価指数 | 79種（**TOPIX=0000**＝専用 `/indices/bars/daily/topix` と実値一致確認済）約18万行 | by-code |
 | 投資部門別フロー | 週次・市場区分別の13主体（海外/個人/投信…）売買 | from/to |
 
+- **EDINET 三表 PIT ファンダ（Phase 2・別サブスク EDINET API v2）**：公式 EDINET の有報 type=5
+  （XBRL→CSV）を一次ソースに、財務三表を**提出日アンカーの as-of パネル**へ統合し、CF系・BS明細系の
+  特徴量（FCF利回り/ROIC/資産成長/アクルーアル/レバレッジ/R&D集約度等）を解禁（GKX Phase 2）。
+  `data/edinet/`（gitignore）。詳細は [14 EDINET ファンダ](14-edinet-fundamentals.md)。
 - **ファンダ panel 組立**（`equities/fundamentals.py`）：`load_fundamentals()` が by-date ミラー
   `fins_summary/`（＋旧 by-code `statements/`）を併合・重複除去して長形式で返し、
   `fundamentals_panel()` が `point_in_time`（DiscDate≤t−lag のみ採用）で**全ユニバースの as-of

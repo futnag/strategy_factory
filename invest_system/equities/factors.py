@@ -147,7 +147,7 @@ def cross_sectional_rank(df: pd.DataFrame) -> pd.DataFrame:
     """
     r = df.rank(axis=1, method="average")                # 行ごとに 1..n
     n = df.notna().sum(axis=1)                            # 行の有効銘柄数
-    # [1,n] -> [0,1] -> [-1,1]。n<2 の行は 0（順序が定義できない）。
+    # [1,n] -> [0,1] -> [-1,1]。有効銘柄 n<2 の行は NaN（順序が定義できない）。
     scaled = (r.sub(1, axis=0)).div((n - 1).replace(0, np.nan), axis=0)
     return (2.0 * scaled - 1.0).where(df.notna())
 

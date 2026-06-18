@@ -32,11 +32,13 @@ V2 一覧 results[] のフィールド（docs/08 §2）:
 """
 from __future__ import annotations
 
+import io
 import json
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -73,6 +75,10 @@ DOC_LARGE_HOLDING = "350"     # 大量保有報告書（C2 イベント起点）
 DOC_LARGE_HOLDING_AMEND = "360"  # 訂正大量保有報告書
 DOC_ANNUAL = "120"            # 有価証券報告書（C4 の BS 明細ソース）
 DOC_ANNUAL_AMEND = "130"      # 訂正有価証券報告書
+DOC_QUARTERLY = "140"         # 四半期報告書
+DOC_SEMIANNUAL = "160"        # 半期報告書
+# 三表明細（ファンダ特徴量）ソース。既定は有報＋訂正有報。
+ANNUAL_DOC_TYPES = (DOC_ANNUAL, DOC_ANNUAL_AMEND)
 
 # C1 に必要な書類セット（docs/08 §8.4）。出口(270/260)を欠くと損益が確定できない。
 TOB_DOC_TYPES = (DOC_TOB_NOTICE, DOC_TOB_NOTICE_AMEND, DOC_TOB_WITHDRAW,
@@ -221,6 +227,49 @@ def parse_documents(results: list) -> pd.DataFrame:
     return df[_ALL_COLS + extra]
 
 
+# --- type=5（XBRL→CSV）パース（純関数・ネットワーク不要） -----------------
+# type=5 CSV は UTF-16・タブ区切り・固定 9 列（仕様書 / 実データで確認）:
+#   要素ID / 項目名 / コンテキストID / 相対年度 / 連結・個別 / 期間・時点 / ユニットID / 単位 / 値
+_XBRL_CSV_COLS = ["element_id", "item_name", "context_id", "rel_year",
+                  "consolidated", "period_type", "unit_id", "unit", "value"]
+# 当期・連結のコンテキスト（メンバー無し）。親会社単体は _NonConsolidatedMember、
+# セグメント・内訳は各 *Member が付くため、素の CurrentYear* に限定して本体値を採る。
+CURRENT_CONSOLIDATED_CTX = ("CurrentYearDuration", "CurrentYearInstant")
+
+
+def read_xbrl_csv(path) -> pd.DataFrame:
+    """type=5（XBRL→CSV）の ZIP もしくは CSV を財務ファクトの長形式 DataFrame に読む。
+
+    ZIP には本報告（jpcrp*.csv）と監査報告（jpaud*.csv）が同梱される。本報告のみ採用
+    （jpaud を除く最大 CSV）。value は文字列のまま（"-"・テキストブロック混在）保持し、
+    数値版を value_num に、名前空間 prefix（jppfs_cor/jpigp_cor/jpcrp_cor 等）を
+    namespace 列に分離する。
+    """
+    path = Path(path)
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as z:
+            names = [n for n in z.namelist()
+                     if n.lower().endswith(".csv") and "jpaud" not in n.lower()]
+            if not names:
+                raise RuntimeError(f"type=5 ZIP に本報告CSVが無い: {path.name}")
+            main = max(names, key=lambda n: z.getinfo(n).file_size)
+            raw = z.read(main)
+    else:
+        raw = path.read_bytes()
+    df = pd.read_csv(io.BytesIO(raw), sep="\t", encoding="utf-16", dtype=str)
+    if df.shape[1] >= 9:                         # 末尾に予備列が付く版に備え先頭 9 列
+        df = df.iloc[:, :9]
+        df.columns = _XBRL_CSV_COLS
+    df["namespace"] = df["element_id"].str.split(":").str[0]
+    df["value_num"] = pd.to_numeric(df["value"], errors="coerce")
+    return df
+
+
+def consolidated_current(facts: pd.DataFrame) -> pd.DataFrame:
+    """当期・連結のコンテキストのみに絞る（CurrentYearDuration/Instant、メンバー無し）。"""
+    return facts[facts["context_id"].isin(CURRENT_CONSOLIDATED_CTX)]
+
+
 # --- 取得（キャッシュ付き） -----------------------------------------------
 def _save_list(df: pd.DataFrame, cache: Path) -> None:
     """空（書類なしの日）もマーカー保存し by-date ミラーを冪等化（再取得しない）。"""
@@ -298,3 +347,15 @@ def large_holding_documents(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
     return df[df["ordinanceCode"] == ORD_LARGE_HOLDING]
+
+
+def annual_report_documents(df: pd.DataFrame,
+                            doc_types: tuple = ANNUAL_DOC_TYPES) -> pd.DataFrame:
+    """有価証券報告書（三表明細＝ファンダ特徴量ソース）。既定は 120/130（有報・訂正有報）。
+
+    by-date 一覧から docTypeCode で抽出。secCode を持つ提出のみ（ファンド等を除外）。
+    """
+    if df.empty:
+        return df
+    m = df["docTypeCode"].isin(list(doc_types)) & df["secCode"].notna()
+    return df[m]

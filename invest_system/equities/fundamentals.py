@@ -62,13 +62,16 @@ def point_in_time(fund_long: pd.DataFrame, rebal_dates, fields: list[str],
     rebal_dates: リバランス日の列（Timestamp 群）
     返り値      : {field: DataFrame(index=rebal_dates, columns=code)}（as-of値）
     """
-    rebal = pd.DatetimeIndex(sorted(pd.to_datetime(list(rebal_dates)))).normalize()
+    rebal = pd.DatetimeIndex(sorted(pd.to_datetime(list(rebal_dates)))
+                             ).normalize().astype("datetime64[ns]")
     present = [f for f in fields if f in fund_long.columns]
     if fund_long.empty or not present:
         return {f: pd.DataFrame(index=rebal, dtype="float64") for f in present}
 
     df = fund_long.dropna(subset=[date_col]).copy()
-    df[date_col] = pd.to_datetime(df[date_col]).dt.normalize()
+    # parquet/pyarrow 由来は datetime64[us] になり得る。merge_asof は左右キーの解像度一致を
+    # 要求するため ns へ正規化（cutoff は ns・rebal 由来）。
+    df[date_col] = pd.to_datetime(df[date_col]).dt.normalize().astype("datetime64[ns]")
     # as-of 突合のための左キー（リバランス日からラグを引いた締切日）
     left = pd.DataFrame({"asof": rebal})
     left["cutoff"] = left["asof"] - pd.Timedelta(days=lag_days)

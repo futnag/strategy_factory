@@ -138,6 +138,20 @@ def cross_sectional_zscore(df: pd.DataFrame, winsor: float = 3.0) -> pd.DataFram
     return z
 
 
+def cross_sectional_rank(df: pd.DataFrame) -> pd.DataFrame:
+    """各日付（行）で銘柄横断に [-1, 1] のランクへ写像（外れ値に頑健な標準化）。
+
+    各行の有効値を昇順ランク→[0,1]（min-max）→[-1,1] に線形変換。中央値が 0 付近。
+    z スコア（cross_sectional_zscore）が外れ値や非正規分布に弱い場面の代替で、
+    GKX/特徴量ライブラリで一般的なランク正規化（handoff §3 の「[-1,1] ランク」版）。
+    """
+    r = df.rank(axis=1, method="average")                # 行ごとに 1..n
+    n = df.notna().sum(axis=1)                            # 行の有効銘柄数
+    # [1,n] -> [0,1] -> [-1,1]。n<2 の行は 0（順序が定義できない）。
+    scaled = (r.sub(1, axis=0)).div((n - 1).replace(0, np.nan), axis=0)
+    return (2.0 * scaled - 1.0).where(df.notna())
+
+
 def sector_neutralize(df: pd.DataFrame, sector: pd.Series) -> pd.DataFrame:
     """各日付で同一セクター内の平均を引き、業種共通成分を除去（交絡制御）。
 

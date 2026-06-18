@@ -200,6 +200,149 @@ def build_price_liquidity_features(base: str = "data", monthly: bool = True) -> 
     return out
 
 
+def build_holdings_features(base: str = "data") -> dict:
+    """信用/空売りの**公表日アンカー**月次PIT特徴量を材化（float32・wide・GKX A-1）。
+
+    holdings_factors の long（available_date 付き）を `fundamentals.point_in_time`
+    （date_col="available_date", lag_days=0＝公表日 ≤t で as-of）に流す。基準日でなく公表日で
+    乗るため未来漏れなし。符号：margin_imbalance/short_to_long/margin_balance_change/days_to_cover
+    は raw、short_interest は**負号**（高SI→低リターン）、sector_short_ratio は S33→銘柄に展開。
+    """
+    from ..equities import fundamentals as fu
+    from ..equities import holdings_factors as hf
+    from ..equities import margin as mg
+    adj = load_wide("adj_close", base=base)
+    if adj.empty:
+        return {}
+    month_ends = list(adj.resample("ME").last().index)
+    cal = hf.trading_days(base)
+    out: dict[str, list] = {}
+
+    wl = hf.weekly_margin_long(mg.load_weekly_margin(), cal)   # 週次信用 +2 営業日
+    if not wl.empty:
+        flds = ["margin_imbalance", "short_to_long", "margin_balance_change"]
+        pw = fu.point_in_time(wl, month_ends, flds, date_col="available_date",
+                              code_col="Code", lag_days=0)
+        for name in flds:
+            _write(pw[name].astype("float32"), name, base)
+            out[name] = [int(pw[name].shape[0]), int(pw[name].shape[1])]
+
+    sl = hf.short_position_long(mg.load_short_positions())     # 大量空売り DiscDate
+    if not sl.empty:
+        ps = fu.point_in_time(sl, month_ends, ["short_interest", "short_shares"],
+                              date_col="available_date", code_col="Code", lag_days=0)
+        si = (-ps["short_interest"]).astype("float32")         # 負号（空売りアノマリー）
+        _write(si, "short_interest", base)
+        out["short_interest"] = [int(si.shape[0]), int(si.shape[1])]
+        vol = load_wide("volume", base=base)                   # days-to-cover（残株数/平均出来高）
+        if not vol.empty:
+            avgvol = (vol.rolling(20, min_periods=10).mean()
+                      .resample("ME").last().reindex(index=month_ends))
+            ss = ps["short_shares"]
+            common = avgvol.columns.intersection(ss.columns)
+            dtc = (ss[common] / avgvol[common].where(avgvol[common] > 0)).astype("float32")
+            _write(dtc, "days_to_cover", base)
+            out["days_to_cover"] = [int(dtc.shape[0]), int(dtc.shape[1])]
+
+    srl = hf.sector_short_long(mg.load_short_ratio(), cal)     # 業種別空売り +1 営業日
+    sec_map = _load_sector()
+    if not srl.empty and not sec_map.empty:
+        sec_wide = fu.point_in_time(srl, month_ends, ["sector_short_ratio"],
+                                    date_col="available_date", code_col="S33",
+                                    lag_days=0)["sector_short_ratio"]
+        codes = [str(c) for c in adj.columns]
+        sec_for_code = sec_map.reindex(codes)                  # Code→S33（業種スナップ・docs明記）
+        bcast = sec_wide.reindex(columns=sec_for_code.values)
+        bcast.columns = codes
+        _write(bcast.astype("float32"), "sector_short_ratio", base)
+        out["sector_short_ratio"] = [int(bcast.shape[0]), int(bcast.shape[1])]
+    return out
+
+
+def _apply_cols(func, *wides: pd.DataFrame) -> pd.DataFrame:
+    """Series 関数を共通列に列方向適用（多入力対応）。微細構造の列ループ用。"""
+    cols = wides[0].columns
+    for w in wides[1:]:
+        cols = cols.intersection(w.columns)
+    data = {c: func(*[w[c] for w in wides]) for c in cols}
+    return pd.DataFrame(data, index=wides[0].index)
+
+
+def build_microstructure_features(base: str = "data") -> dict:
+    """微細構造（Parkinson/Garman-Klass/Roll/Corwin-Schultz/VPIN/RSI）を月次PIT材化（GKX A-2）。
+
+    `microstructure.py` の Series 関数を**全銘柄に適用**（dtype 非依存の関数は wide 直接、roll/vpin は
+    列ループ）→ 月末 as-of・float32。**入力は調整済 OHLC**（adj_high/low/open/close）＝分割日の
+    ジャンプでスプレッド/レンジ推定が壊れない。volume は adj 版が無いため raw を使用（docs/16 明記）。
+    符号：parkinson/garman_klass は**負号**（低ボラ）、roll/corwin は**正号**（非流動性）、vpin/rsi は raw。
+    amihud は price_factors で材化済みのため追加しない。
+    """
+    from ..features import microstructure as ms
+    ah, al = load_wide("adj_high", base=base), load_wide("adj_low", base=base)
+    ao, ac = load_wide("adj_open", base=base), load_wide("adj_close", base=base)
+    vo = load_wide("volume", base=base)
+    if ac.empty or ah.empty or al.empty:
+        return {}
+    daily = {
+        "parkinson_vol": -ms.parkinson_vol(ah, al, 20),               # 低ボラ＝負号
+        "garman_klass_vol": -ms.garman_klass_vol(ao, ah, al, ac, 20),
+        "corwin_schultz_spread": ms.corwin_schultz_spread(ah, al),    # 非流動性＝正号
+        "rsi": ms.rsi(ac, 14),                                        # raw [0,100]
+        "roll_spread": _apply_cols(lambda s: ms.roll_spread(s, 20), ac),   # 正号
+    }
+    if not vo.empty:
+        daily["vpin"] = _apply_cols(lambda c, v: ms.vpin(c, v, 50), ac, vo)  # raw [0,1]
+    out: dict[str, list] = {}
+    for name, df in daily.items():
+        m = df.resample("ME").last().astype("float32")
+        _write(m, name, base)
+        out[name] = [int(m.shape[0]), int(m.shape[1])]
+    return out
+
+
+def build_fundamental_features_v2(base: str = "data") -> dict:
+    """fins_summary 新ファンダ（SUE/予想改訂/成長/安定度/持続可能成長/52週高値/季節性/Dimsonβ）
+    を月次PIT材化（float32・wide・GKX B・EDINET非依存）。
+
+    開示レベル特徴は `fundamentals.point_in_time`（DiscDate アンカー・lag1）で月末 as-of。SUE と
+    予想改訂は raw サプライズを**月末終値で除して** surprise yield 化（赤字でも頑健・winsor は
+    zscore/rank ビューが担う）。52週高値/Dimsonβは日次→月末、季節性は月次。
+    """
+    from ..equities import fundamental_factors as ff
+    from ..equities import fundamentals as fu
+    adj = load_wide("adj_close", base=base)
+    raw_close = load_wide("close", base=base)
+    if adj.empty or raw_close.empty:
+        return {}
+    month_ends = list(adj.resample("ME").last().index)
+    close_me = raw_close.resample("ME").last().reindex(index=month_ends)
+    cmask = close_me.where(close_me > 0)
+    out: dict[str, list] = {}
+
+    def emit(df: pd.DataFrame, name: str) -> None:
+        m = df.reindex(index=month_ends).astype("float32")
+        _write(m, name, base)
+        out[name] = [int(m.shape[0]), int(m.shape[1])]
+
+    out_fy, out_rev = ff.disclosure_features(fu.load_fundamentals())
+    fy_flds = ["sue_recent_raw", "sue_initial_raw", "sales_growth", "profit_growth",
+               "equity_growth", "roe_stability", "margin_stability", "sustainable_growth"]
+    pfy = fu.point_in_time(out_fy, month_ends, fy_flds, date_col="DiscDate",
+                           code_col="Code", lag_days=1)
+    prev = fu.point_in_time(out_rev, month_ends, ["forecast_revision_raw"],
+                            date_col="DiscDate", code_col="Code", lag_days=1)
+    emit(pfy["sue_recent_raw"] / cmask, "sue_recent")        # surprise yield
+    emit(pfy["sue_initial_raw"] / cmask, "sue_initial")
+    emit(prev["forecast_revision_raw"] / cmask, "forecast_revision")
+    for f in ("sales_growth", "profit_growth", "equity_growth", "roe_stability",
+              "margin_stability", "sustainable_growth"):
+        emit(pfy[f], f)
+    emit(ff.high_52w(adj).resample("ME").last(), "high_52w")
+    emit(ff.seasonality(adj), "seasonality")
+    emit(ff.dimson_beta(adj).resample("ME").last(), "dimson_beta")
+    return out
+
+
 def price_factor_view(name: str, view: str = "rank", base: str = "data") -> pd.DataFrame:
     """材化済み price/liquidity ファクターの 3 ビュー（raw/zscore/rank/sector_neutral）を生成。
 
@@ -224,4 +367,11 @@ def materialize_features(base: str = "data") -> dict:
     rep = {"price": build_price_features(base=base)}
     rep["regime"] = build_regime(base=base)
     rep["price_liquidity"] = build_price_liquidity_features(base=base)
+    # 拡充 A/B は完全な Silver OHLCV が揃う base でのみ材化（最小フィクスチャでは no-op）。
+    full = all(not load_wide(f, base=base).empty
+               for f in ("close", "adj_high", "adj_low", "volume"))
+    if full:
+        rep["holdings"] = build_holdings_features(base=base)
+        rep["microstructure"] = build_microstructure_features(base=base)
+        rep["fundamental_v2"] = build_fundamental_features_v2(base=base)
     return rep

@@ -268,6 +268,12 @@ Standard 提供の全データセットを**全営業日 by-date ミラー**（2
   リバーサル/各種ボラ/特異ボラ/ベータ/MAX と Amihud/回転率/売買代金/ゼロ日を `equities/price_factors.py`
   に追加し、`feature_store` で月次 PIT・float32・[-1,1]ランク/セクター中立として材化（GKX Phase 1）。
   詳細は [15 価格・流動性ファクター](15-price-liquidity-factors.md)。
+- **信用/空売り・微細構造ファクター（拡充A・J-Quants 日次/週次のみ）**：信用需給・空売り残高（**公表日
+  アンカー**）と Parkinson/Garman-Klass/Roll/Corwin-Schultz/VPIN/RSI（**調整済OHLC**）を月次 PIT 材化
+  （`equities/holdings_factors.py`・feature_store）。詳細は [16 信用/空売り・微細構造](16-holdings-microstructure-factors.md)。
+- **fins_summary 新ファンダ（拡充B・EDINET 非依存）**：SUE/予想改訂・成長・安定度・持続可能成長・52週
+  高値・季節性・Dimson β を提出日アンカー PIT で材化（`equities/fundamental_factors.py`・feature_store）。
+  詳細は [17 fins 新ファンダ](17-fundamental-factors-v2.md)。
 - **ファンダ panel 組立**（`equities/fundamentals.py`）：`load_fundamentals()` が by-date ミラー
   `fins_summary/`（＋旧 by-code `statements/`）を併合・重複除去して長形式で返し、
   `fundamentals_panel()` が `point_in_time`（DiscDate≤t−lag のみ採用）で**全ユニバースの as-of

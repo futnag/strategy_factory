@@ -1,0 +1,35 @@
+group_slug,display_name,known_edinet_code,style,note
+effissimo,エフィッシモ・キャピタル,E11852,engagement_hard,
+city_index_elevenths,シティインデックスイレブンス(村上系),E35393,engagement_hard,cityfirst E40184/reno E24231と同系
+minami_aoyama,南青山不動産(村上系),,engagement_hard,村上系。コード要特定
+strategic_capital,ストラテジックキャピタル,E27325,engagement_hard,
+3d_investment,3D Investment Partners,E33309,engagement_hard,search不可・コード既知
+oasis,Oasis Management Company,,engagement_hard,大型多数。コード要特定
+elliott,エリオット,E35450,engagement_hard,
+valueact,ValueAct Capital,,engagement_hard,コード要特定
+nippon_active_value,NIPPON ACTIVE VALUE FUND(NAVF),,engagement_hard,ダルトン系
+misaki,みさき投資,E32221,engagement_soft,
+avi,アセット・バリュー・インベスターズ,E34595,engagement_soft,
+dalton_llc,ダルトン・インベストメンツ LLC,E08827,engagement_soft,E39237と同系・dedup
+dalton_inc,ダルトン・インベストメンツ Inc,E39237,engagement_soft,E08827と同系・dedup
+hibiki,ひびき・パース・アドバイザーズ,,engagement_hard,SPC名義あり
+varecs,ヴァレックス・パートナーズ,,engagement_hard,
+kaname,カナメ・キャピタル,,engagement_hard,
+ichigo,いちごアセットマネジメント,,engagement_soft,
+orbis,オービス・インベストメント,,engagement_soft,
+symphony,シンフォニー・フィナンシャル・パートナーズ,,engagement_soft,
+ariake,ありあけキャピタル,,engagement_hard,
+gmo,グランサム・マヨ(GMO),,engagement_soft,
+doe5,DOE5パーセント,E39020,engagement_hard,配当性向向上特化・社名で意図表明
+fundnote,fundnote,E40155,engagement_hard,
+be_brave,Be Brave,,engagement_hard,
+axium,AXIUM CAPITAL,,engagement_hard,
+silvercape,SilverCape Investments,,engagement_hard,
+old_peak,Old Peak Group,,engagement_hard,
+miri,MIRI Capital Management,,engagement_hard,
+zenner,ゼナーアセットマネジメント,,engagement_hard,
+ugs,UGSアセットマネジメント,,engagement_hard,
+s_grant,エスグラントコーポレーション,,engagement_hard,
+global_mgmt,GLOBAL MANAGEMENT PARTNERS,,engagement_hard,
+mi2,MI2,,engagement_hard,
+ueshima,植島幹九郎(個人アクティビスト),,engagement_hard,個人

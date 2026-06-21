@@ -43,6 +43,48 @@ def _safe(s: pd.Series) -> pd.Series:
     return s.where(s > 0)
 
 
+def attach_split_cf(long: pd.DataFrame, base: Optional[str] = None) -> pd.DataFrame:
+    """各 (Code, period_end) に分割累積係数 split_cf＝AdjC/C（as-of ≤ period_end）を付与。
+
+    J-Quants の調整後終値 AdjC は最新日を係数 1 に正規化した back-adjusted 価格で、
+    AdjC/C ＝「その日以降の分割の累積係数 Π_{s>d} AdjFactor」（store.rebuild_adjusted と同義）。
+    分割調整後の発行株数 = 生株数 / split_cf となり、純粋な分割は前年比 0 に潰れる。
+    PIT 不変：純発行に効く比 split_cf(t-1)/split_cf(t) は (t-1,t] の分割のみに依存し
+    AdjC の正規化基準（最新日）に依らない＝将来の分割を覗かない。
+
+    価格 wide（Silver 層）が無ければ long をそのまま返す＝raw 株数で計算（後方互換・安全）。
+    """
+    if (long.empty or "shares_outstanding" not in long.columns
+            or "period_end" not in long.columns):
+        return long
+    try:                                                 # 価格 wide は best-effort
+        from ..data import store
+        adjc = store.load_wide("AdjC", base=base) if base else store.load_wide("AdjC")
+        c = store.load_wide("C", base=base) if base else store.load_wide("C")
+    except Exception:  # noqa: BLE001
+        return long
+    if adjc.empty or c.empty:
+        return long
+    cf = (adjc / c.where(c != 0)).replace([np.inf, -np.inf], np.nan).sort_index()
+    cf.index = pd.to_datetime(cf.index)
+    df = long.copy()
+    pe = pd.to_datetime(df["period_end"], errors="coerce")
+    out = pd.Series(1.0, index=df.index, dtype="float64")
+    for code, idx in df.groupby(df["Code"].astype(str)).groups.items():
+        if code not in cf.columns:
+            continue
+        s = cf[code].dropna()
+        s = s[~s.index.duplicated(keep="last")]
+        sub = pe.loc[idx].dropna()                          # period_end（重複あり得る）
+        if s.empty or sub.empty:
+            continue
+        uniq = pd.DatetimeIndex(sub.unique()).sort_values()  # 一意日付で as-of（≤period_end）
+        asof = s.reindex(s.index.union(uniq)).sort_index().ffill().reindex(uniq)
+        out.loc[sub.index] = sub.map(asof).values
+    df["split_cf"] = out.where(out > 0, 1.0).fillna(1.0)
+    return df
+
+
 def derive_disclosure_features(long: pd.DataFrame) -> pd.DataFrame:
     """長形式（開示×銘柄）に §3 のファンダ派生ファクターを列として付与（純関数）。
 
@@ -71,10 +113,13 @@ def derive_disclosure_features(long: pd.DataFrame) -> pd.DataFrame:
     # 資産成長（前年比）。移行/非連続は NaN。低成長ほどプレミアム（investment 因子）。
     df["asset_growth"] = (df["total_assets"] / g["total_assets"].shift(1) - 1.0
                           ).where(valid_yoy)
-    # 純株式発行（前年比）。低い（希薄化少）ほどプレミアム。
-    # 注：分割調整は未実施（raw 発行株数の前年比）＝分割年は過大に出る既知の限界（docs/14）。
-    df["net_share_issuance"] = (df["shares_outstanding"]
-                                / g["shares_outstanding"].shift(1) - 1.0).where(valid_yoy)
+    # 純株式発行（前年比）。低い（希薄化少）ほどプレミアム。分割調整後株数の前年比で計算＝
+    # 純粋な分割は ≈0 に潰す（split_cf があれば調整株数、無ければ raw＝後方互換）。attach_split_cf。
+    shares_adj = (df["shares_outstanding"] / _safe(df["split_cf"])
+                  if "split_cf" in df.columns else df["shares_outstanding"])
+    df["net_share_issuance"] = (
+        shares_adj / shares_adj.groupby(df["Code"], sort=False).shift(1) - 1.0
+    ).where(valid_yoy)
 
     # アクルーアル（簡易・CF ベース）：低い（利益の質が高い）ほどプレミアム。
     df["accruals"] = (df["profit"] - df["cfo"]) / ta
@@ -115,7 +160,7 @@ def edinet_factor_panels(rebal_dates, codes: Optional[Iterable] = None,
     FCF 利回り・CF/P も加わる（時価総額は J-Quants 株価×株数で呼び出し側が用意）。
     標準化・セクター中立は factors の各関数を重ねて得る（raw を返す）。
     """
-    long = derive_disclosure_features(build_edinet_long())
+    long = derive_disclosure_features(attach_split_cf(build_edinet_long()))
     rebal = pd.DatetimeIndex(sorted(pd.to_datetime(list(rebal_dates)))).normalize()
     if long.empty:
         return {f: pd.DataFrame(index=rebal, dtype="float64") for f in DERIVED_FACTORS}

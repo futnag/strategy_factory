@@ -10,8 +10,9 @@ López de Prado 由来の検証ファクトリを GKX（Gu, Kelly & Xiu 2020）�
 > 関連：[03 研究知見](03-research-findings.md) §5 データ資産 / `handoff_for_data.md`。
 
 実装：`data/sources/edinet.py`・`edinet_taxonomy.py`／`equities/edinet_fundamentals.py`・
-`edinet_factors.py`／`examples/download_edinet.py`・`edinet_validate_slice.py`・
-`diag_edinet_fundamentals.py`。テスト：`tests/test_edinet_fundamentals.py`（13 件）。
+`edinet_factors.py`／`examples/download_edinet.py`・`build_edinet_long.py`・
+`edinet_validate_slice.py`・`diag_edinet_fundamentals.py`。
+テスト：`tests/test_edinet_fundamentals.py`（24 件）。
 
 ---
 
@@ -82,6 +83,32 @@ as-of wide パネルにする。決算期末・報告義務日は使わず提出
   移行年（および会計年度が非連続な年）をまたぐ YoY（資産成長・純株式発行）を **NaN 化**する
   （遡及再表示で BS が不連続になるため壊れた成長率を持ち込まない）。
 
+### 3.1 初回フル材化の運用（進捗・チェックポイント・再開）
+
+バックフィル済み有報 zip は **約 44,000 件**。初回フル材化は **数十分〜1.5h 規模**で、
+専用ランナー `examples/build_edinet_long.py`（手元ターミナル直実行＝プラン使用量を消費しない）で
+進捗付き・中断再開可で一度回す。`diag_edinet_fundamentals.py` の材化トリガと同じ
+`build_edinet_long(verbose=True)` を呼ぶだけの薄いラッパ。
+
+```
+.venv\Scripts\python.exe examples\build_edinet_long.py                      # 増分（既定）
+.venv\Scripts\python.exe examples\build_edinet_long.py --checkpoint-every 2000
+.venv\Scripts\python.exe examples\build_edinet_long.py --rebuild            # 全再構築
+```
+
+- **進捗表示**：`[i/total] docID FYyyyy 累計N warnW 経過… 残り≈…`（todo を事前列挙して総数・ETA を提示）。
+  44k 件の無言進行を解消（無言＝ハング誤認による中断＝振り出し、を防ぐ）。
+- **チェックポイント保存**：`checkpoint_every` 件（既定 **1000**）ごとに本体
+  `data/edinet/fundamentals_long.parquet` を **原子的に上書き**（同一ディレクトリの一時ファイル →
+  `os.replace`）。書き込み途中の中断でも本体 parquet は破損せず、直近チェックポイントまで保全。
+- **中断再開**：**Ctrl-C は直近まで flush 保存してから再送出**。同じコマンドを再実行すれば
+  既処理 docID（`done`）をスキップして **続きから**進む（増分・冪等）。完了後の再実行は +0 件・結果不変。
+- **刻み幅不変**：最終 long は `checkpoint_every` に依らず**一括実行時と完全一致**（行・列・dtype・
+  docID 集合）。返り値は全パース結果から一度だけ構築するため、チェックポイントは途中保存専用。
+- **PIT 不変**：提出日アンカー（`DiscDate=submitDateTime`）・`extract_canonical`・正準フィールド集合は
+  不変。材化の堅牢化のみでファクタ計算・スキーマ・レジストリ（K）には一切触れない。
+- 運用上の注意：材化中は **PC をスリープさせない**。メモリは累積 DataFrame（~44k 行 × 数十列 ≈ 100MB 規模）。
+
 ---
 
 ## 4. 特徴量（§3）
@@ -101,7 +128,7 @@ as-of サンプル（YoY は移行/非連続で NaN）。価格依存（利回�
 | asset_growth | 総資産の前年比 | investment 軸（低成長=プレミアム）・移行/非連続は NaN |
 | accruals | (純利益 − 営業CF) / 総資産 | 簡易 CF ベース（低い=高品質） |
 | leverage | 有利子負債 / 純資産 | D/E |
-| net_share_issuance | 発行済株式数の前年比 | **分割調整は未実施（既知の限界）** |
+| net_share_issuance | 分割調整後 発行済株式数の前年比 | `attach_split_cf`（AdjC/C の累積分割係数）で調整＝純粋な分割は≈0 |
 | rd_intensity | 研究開発費 / 売上 | 疎 |
 
 ---

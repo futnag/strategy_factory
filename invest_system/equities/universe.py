@@ -6,6 +6,8 @@ ETF/REIT/インフラファンド等を除外し、十分な流動性（売買�
 """
 from __future__ import annotations
 
+from typing import Optional
+
 import pandas as pd
 
 # Mkt コード（V2 /equities/master）:
@@ -66,6 +68,28 @@ def point_in_time_universe(turnover_panel: pd.DataFrame, top_n: int = 300,
         top = eligible.sort_values(ascending=False).head(top_n).index
         mask.loc[t, top] = True
     return mask
+
+
+def liquid_universe_mask(close: pd.DataFrame, mcap: Optional[pd.DataFrame] = None,
+                         adv: Optional[pd.DataFrame] = None, min_price: float = 100.0,
+                         min_mcap: float = 1e10, min_adv: float = 5e7) -> pd.DataFrame:
+    """各時点 t で「株価≥min_price・時価総額≥min_mcap・(trailing)ADV≥min_adv」を満たす所属マスク。
+
+    すべて t 時点の値のみで判定＝先読み無し（adv は呼び出し側で trailing 平均にしておく）。
+    Phase 4 本番ユニバースの絶対しきい値版（top_n 版の point_in_time_universe と別軸）。
+    与えた panel だけで判定（None/空はスキップ）。close は基準（index/columns の母体）。
+    既定しきい値：株価 ¥100・時価総額 ¥10B・ADV ¥50M（docs/17・phase4-preflight-decisions）。
+    """
+    if close is None or close.empty:
+        return pd.DataFrame()
+    idx, cols = close.index, close.columns
+    m = pd.DataFrame(True, index=idx, columns=cols)
+    m &= close >= min_price
+    if mcap is not None and not mcap.empty:
+        m &= mcap.reindex(index=idx, columns=cols) >= min_mcap
+    if adv is not None and not adv.empty:
+        m &= adv.reindex(index=idx, columns=cols) >= min_adv
+    return m.fillna(False)
 
 
 def universe_members(mask: pd.DataFrame) -> list[str]:

@@ -6,14 +6,18 @@ import pytest
 from invest_system.equities.universe import (
     apply_universe_mask,
     filter_common_stocks,
+    liquid_universe_mask,
     point_in_time_universe,
     select_universe,
     universe_members,
 )
 from invest_system.equities.panel import (
     assemble_panel,
+    delisting_mask,
     forward_returns,
+    impute_delisting,
     load_daily_panel,
+    total_forward_returns,
     trailing_momentum,
 )
 from invest_system.equities.fundamentals import (
@@ -343,3 +347,95 @@ def test_long_short_returns_sign_and_costs():
     # コスト有り：初回は全建てで回転=2、片道10bps → 0.002 控除
     r1 = long_short_returns(factor, fwd, quantile=0.25, costs_bps=10, min_names=4)
     assert r1.iloc[0] == pytest.approx(0.10 - 0.002)
+
+
+# --- 1-2 上場廃止リターン補完（生存者バイアス） -----------------------------
+def test_delisting_mask_detects_exit_not_panel_end():
+    idx = pd.to_datetime(["2025-01-31", "2025-02-28", "2025-03-31"])
+    # A=2月で退出（3月NaN）、B=終端まで在籍（廃止でない）
+    price = pd.DataFrame({"A": [100.0, 50.0, np.nan], "B": [10.0, 11.0, 12.0]}, index=idx)
+    m = delisting_mask(price)
+    assert bool(m.loc[idx[1], "A"]) is True            # 最終取引月=2月を廃止月に
+    assert bool(m["B"].any()) is False                 # 終端在籍は廃止でない
+
+
+def test_impute_delisting_policies():
+    idx = pd.to_datetime(["2025-01-31", "2025-02-28", "2025-03-31"])
+    price = pd.DataFrame({"A": [100.0, 50.0, np.nan], "B": [10.0, 11.0, 12.0]}, index=idx)
+    base = forward_returns(price)
+    assert np.isnan(base.loc[idx[1], "A"])             # 素では廃止月が NaN＝バイアス源
+    lp = impute_delisting(base, price, policy="last_price")
+    assert lp.loc[idx[1], "A"] == 0.0                  # 最終気配清算＝増分0（偽損失なし）
+    m100 = impute_delisting(base, price, policy="all_minus100")
+    assert m100.loc[idx[1], "A"] == -1.0              # 全損下限
+    heur = impute_delisting(base, price, policy="heuristic", heuristic_threshold=-0.4)
+    assert heur.loc[idx[1], "A"] == -1.0             # 直近 -50% < -40% → 倒産プロキシ
+    assert lp.loc[idx[0], "B"] == pytest.approx(0.1)  # 通常銘柄は不変
+
+
+# --- 1-3 配当込みトータルリターン ------------------------------------------
+def test_total_forward_returns_adds_dividend_yield():
+    idx = pd.to_datetime(["2025-01-31", "2025-02-28", "2025-03-31"])
+    adj = pd.DataFrame({"A": [100.0, 110.0, 121.0]}, index=idx)   # +10%/月
+    raw = pd.DataFrame({"A": [100.0, 110.0, 121.0]}, index=idx)
+    dps = pd.DataFrame({"A": [12.0, 12.0, 12.0]}, index=idx)      # 年12円→月1円
+    tr = total_forward_returns(adj, raw, dps, periods_per_year=12)
+    assert tr.loc[idx[0], "A"] == pytest.approx(0.10 + 1.0 / 100.0)  # 価格0.10＋配当0.01
+    # dps 無し＝価格リターンのみ（後方互換＝forward_returns）
+    assert total_forward_returns(adj).loc[idx[0], "A"] == pytest.approx(0.10)
+
+
+# --- Part3-1 流動性ユニバース（絶対しきい値・PIT） --------------------------
+def test_liquid_universe_mask_thresholds():
+    idx = pd.to_datetime(["2025-01-31"])
+    close = pd.DataFrame({"A": [150.0], "B": [80.0], "C": [200.0]}, index=idx)
+    mcap = pd.DataFrame({"A": [2e10], "B": [5e10], "C": [5e9]}, index=idx)
+    adv = pd.DataFrame({"A": [1e8], "B": [1e8], "C": [1e8]}, index=idx)
+    m = liquid_universe_mask(close, mcap, adv, min_price=100, min_mcap=1e10, min_adv=5e7)
+    assert bool(m.loc[idx[0], "A"]) is True            # 全条件 OK
+    assert bool(m.loc[idx[0], "B"]) is False           # 株価 80 < 100
+    assert bool(m.loc[idx[0], "C"]) is False           # 時価総額 5e9 < 1e10
+
+
+# --- Part2 正準ポリシー（外れ値・欠損） ------------------------------------
+def test_winsorize_cross_sectional_clips_tails():
+    from invest_system.equities.factors import winsorize_cross_sectional
+    df = pd.DataFrame({"a": [0.0], "b": [1.0], "c": [2.0], "d": [100.0]},
+                      index=pd.to_datetime(["2025-01-31"]))
+    w = winsorize_cross_sectional(df, lower=0.0, upper=0.9).iloc[0]
+    assert w["d"] < 100.0 and w["a"] == 0.0            # 上側外れ値をクリップ
+
+
+def test_rank_and_fill_neutralizes_missing():
+    from invest_system.equities.factors import rank_and_fill
+    df = pd.DataFrame({"a": [1.0], "b": [2.0], "c": [np.nan]},
+                      index=pd.to_datetime(["2025-01-31"]))
+    rf = rank_and_fill(df).iloc[0]
+    assert rf["c"] == 0.0                               # 欠損は中立0（方向バイアスなし）
+    assert rf["a"] == pytest.approx(-1.0) and rf["b"] == pytest.approx(1.0)
+
+
+# --- Part2-9 結合パネルの一体先読み不変（feature×label） --------------------
+def test_joint_feature_label_no_lookahead():
+    # feature 側：開示 long → as-of（≤t のみ採用、未来開示の改変に不変）
+    long = pd.DataFrame([
+        {"Code": "A", "DiscDate": "2024-06-20", "period_end": "2024-03-31", "total_assets": 100.0},
+        {"Code": "A", "DiscDate": "2025-06-20", "period_end": "2025-03-31", "total_assets": 121.0},
+    ])
+    months = pd.to_datetime(["2025-01-31", "2025-02-28"])
+    feat = point_in_time(long, months, ["total_assets"], lag_days=1)["total_assets"]
+    assert feat.loc["2025-01-31", "A"] == 100.0        # 2025 開示はまだ見えない
+    mut = long.copy()
+    mut.loc[mut["DiscDate"] == "2025-06-20", "total_assets"] = 9999.0
+    feat2 = point_in_time(mut, months, ["total_assets"], lag_days=1)["total_assets"]
+    assert feat2.loc["2025-01-31", "A"] == 100.0       # 未来開示改変に不変
+
+    # label 側：total_forward_returns は price[t],price[t+1],dps[t] のみ＝t+2 改変で不変
+    idx = pd.to_datetime(["2025-01-31", "2025-02-28", "2025-03-31"])
+    adj = pd.DataFrame({"A": [100.0, 110.0, 121.0]}, index=idx)
+    dps = pd.DataFrame({"A": [12.0, 12.0, 12.0]}, index=idx)
+    lab = total_forward_returns(adj, adj.copy(), dps)
+    adj2 = adj.copy()
+    adj2.loc[idx[2]] = 999.0                            # t+2（3月）を改変
+    lab2 = total_forward_returns(adj2, adj.copy(), dps)
+    assert lab.loc[idx[0], "A"] == pytest.approx(lab2.loc[idx[0], "A"])  # label[t] は t→t+1 のみ

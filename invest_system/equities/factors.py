@@ -152,6 +152,29 @@ def cross_sectional_rank(df: pd.DataFrame) -> pd.DataFrame:
     return (2.0 * scaled - 1.0).where(df.notna())
 
 
+def winsorize_cross_sectional(df: pd.DataFrame, lower: float = 0.01,
+                              upper: float = 0.99) -> pd.DataFrame:
+    """各日付（行）で銘柄横断に [lower, upper] 分位へクリップ（生比率の外れ値抑制）。
+
+    比率因子（roic・leverage・asset_growth・fcf_yield・net_share_issuance 等）は
+    極小分母や単位差で桁外れの外れ値を生む。zscore の σ クリップと違い**生値**を分位で
+    切る頑健版。閾値は事前固定（探索しない）。**全比率因子へ一貫適用すること**（docs/16）。
+    """
+    lo = df.quantile(lower, axis=1)
+    hi = df.quantile(upper, axis=1)
+    return df.clip(lower=lo, upper=hi, axis=0)
+
+
+def rank_and_fill(df: pd.DataFrame, fill: float = 0.0) -> pd.DataFrame:
+    """正準・欠損ポリシー：cross_sectional_rank（[-1,1]）の後、残る欠損を fill（既定 0＝中立）で埋める。
+
+    ランク化で外れ値を吸収し、欠損は**中立（ランク中央＝0）**に置く＝0 埋めの方向バイアスを
+    出さない。**全因子へここ一箇所のポリシーで一貫適用する**（欠損の扱いを因子ごとに変えない）。
+    有効銘柄 <2 の行は rank が NaN になるが、その行も fill で中立化される。
+    """
+    return cross_sectional_rank(df).fillna(fill)
+
+
 def sector_neutralize(df: pd.DataFrame, sector: pd.Series) -> pd.DataFrame:
     """各日付で同一セクター内の平均を引き、業種共通成分を除去（交絡制御）。
 

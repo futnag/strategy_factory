@@ -7,6 +7,7 @@ import zipfile
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from invest_system.data.sources import edinet as ed
 from invest_system.data.sources import edinet_taxonomy as tax
@@ -190,6 +191,50 @@ def test_derive_features_yoy_and_transition_nan():
     assert abs(a25["gross_profitability"] - 30.0 / 121.0) < 1e-9
 
 
+def test_net_share_issuance_split_adjusted():
+    # 2:1 分割で生株数 10→20。split_cf(t-1)=0.5, split_cf(t)=1.0 → 調整株数 20→20 → 純発行≈0。
+    long = pd.DataFrame([_row("A", 2024, "IFRS", shares_outstanding=10.0),
+                         _row("A", 2025, "IFRS", shares_outstanding=20.0)])
+    long["split_cf"] = [0.5, 1.0]
+    d = efa.derive_disclosure_features(long).set_index("period_end")
+    assert abs(d.loc["2025-03-31", "net_share_issuance"]) < 1e-9       # 純粋な分割は 0
+    # split_cf 無し（raw）なら +100% 発行のアーティファクトが出る（修正前の挙動）。
+    d2 = efa.derive_disclosure_features(long.drop(columns=["split_cf"])
+                                        ).set_index("period_end")
+    assert abs(d2.loc["2025-03-31", "net_share_issuance"] - 1.0) < 1e-9
+
+
+def test_net_share_issuance_isolates_real_issuance_from_split():
+    # 2:1 分割 ＋ 実 10% 発行：生 10→22、調整 20→22 → 純発行 +10%（分割だけ相殺）。
+    long = pd.DataFrame([_row("A", 2024, "IFRS", shares_outstanding=10.0),
+                         _row("A", 2025, "IFRS", shares_outstanding=22.0)])
+    long["split_cf"] = [0.5, 1.0]
+    d = efa.derive_disclosure_features(long).set_index("period_end")
+    assert abs(d.loc["2025-03-31", "net_share_issuance"] - 0.10) < 1e-9
+
+
+def test_attach_split_cf_asof_lookup(monkeypatch):
+    # AdjC/C を as-of(≤period_end) で引いて split_cf を付与（store 価格 wide をモック）。
+    import invest_system.data.store as store
+    dates = pd.to_datetime(["2024-03-29", "2025-03-31"])
+    panels = {"AdjC": pd.DataFrame({"A": [50.0, 100.0]}, index=dates),
+              "C": pd.DataFrame({"A": [100.0, 100.0]}, index=dates)}
+    monkeypatch.setattr(store, "load_wide", lambda field, base=None: panels[field])
+    long = pd.DataFrame([_row("A", 2024, "IFRS"), _row("A", 2025, "IFRS")])
+    cf = efa.attach_split_cf(long).set_index("period_end")["split_cf"]
+    assert abs(cf.loc["2024-03-31"] - 0.5) < 1e-9     # 2024-03-29 の 50/100=0.5 を as-of
+    assert abs(cf.loc["2025-03-31"] - 1.0) < 1e-9
+
+
+def test_attach_split_cf_no_price_is_noop(monkeypatch):
+    # 価格 wide が無ければ long をそのまま返す（raw 株数＝後方互換）。
+    import invest_system.data.store as store
+    monkeypatch.setattr(store, "load_wide", lambda field, base=None: pd.DataFrame())
+    long = pd.DataFrame([_row("A", 2024, "IFRS"), _row("A", 2025, "IFRS")])
+    out = efa.attach_split_cf(long)
+    assert "split_cf" not in out.columns and len(out) == 2
+
+
 def test_add_basis_transition_flag():
     long = pd.DataFrame([_row("B", 2024, "JGAAP"), _row("B", 2025, "IFRS")])
     tr = ef.add_basis_transition(long).set_index("period_end")
@@ -233,3 +278,128 @@ def test_build_edinet_long_crosswalk(tmp_path, monkeypatch):
     assert r["basis"] == "IFRS"
     assert r["net_sales"] == 200.0 and r["total_assets"] == 1000.0
     assert pd.Timestamp(r["DiscDate"]) == pd.Timestamp("2025-06-20 15:00")
+
+
+# --- チェックポイント／再開／冪等／原子性／後方互換（材化の堅牢化） ----------
+def _corpus(tmp_path, monkeypatch, n: int = 6):
+    """N 件の有報 zip ＋ by-date 一覧ミラーを tmp に作り、ed._CACHE を差し替える。
+
+    偶数 index だけ EquityIFRS（=net_assets）を持たせ、一部の正準フィールドが None の行を
+    混ぜる＝チェックポイント刻みで dtype が割れないこと（一括 vs 分割同一性）を実検証する。
+    返り値は長形式キャッシュのパス（tmp/fund_long.parquet）。
+    """
+    monkeypatch.setattr(ed, "_CACHE", tmp_path)
+    (tmp_path / "list").mkdir()
+    (tmp_path / "docs").mkdir()
+    recs = []
+    for i in range(n):
+        did = f"S10{i:05d}"
+        recs.append({"docID": did, "secCode": f"{72030 + i}", "docTypeCode": "120",
+                     "csvFlag": "1", "submitDateTime": f"2025-06-{10 + i:02d} 15:00",
+                     "periodEnd": f"{2020 + i}-03-31", "ordinanceCode": "010"})
+        rows = [("jpigp_cor:RevenueIFRS", "CurrentYearDuration", str(100 + i)),
+                ("jpigp_cor:AssetsIFRS", "CurrentYearInstant", str(1000 + i))]
+        if i % 2 == 0:                            # 偶数のみ EquityIFRS（=net_assets）
+            rows.append(("jpigp_cor:EquityIFRS", "CurrentYearInstant", str(500 + i)))
+        _make_type5_zip(tmp_path / "docs" / f"{did}_5.zip", rows)
+    ed._save_list(ed.parse_documents(recs), tmp_path / "list" / "20250610.parquet")
+    return tmp_path / "fund_long.parquet"
+
+
+def test_build_bulk_vs_split_identical(tmp_path, monkeypatch):
+    # 同じ corpus を「実質一括」と「2 件刻み」で材化 → 最終 long が完全一致（行・列・dtype）。
+    _corpus(tmp_path, monkeypatch, n=6)
+    bulk = ef.build_edinet_long(rebuild=True, cache_path=tmp_path / "bulk.parquet",
+                                checkpoint_every=10**9)
+    split = ef.build_edinet_long(rebuild=True, cache_path=tmp_path / "split.parquet",
+                                 checkpoint_every=2)
+    pd.testing.assert_frame_equal(bulk, split)
+    assert set(bulk["docID"]) == {f"S10{i:05d}" for i in range(6)}
+
+
+def test_build_resume_from_partial(tmp_path, monkeypatch):
+    # 途中まで書いたキャッシュ → 増分実行で既処理を再パースせず残りだけ追加・最終は一括と一致。
+    _corpus(tmp_path, monkeypatch, n=6)
+    full = ef.build_edinet_long(rebuild=True, cache_path=tmp_path / "full.parquet",
+                                checkpoint_every=10**9)
+    head_ids = sorted(full["docID"])[:3]          # 先頭 3 件だけ書いた「中断状態」を模倣
+    cp = tmp_path / "resume.parquet"
+    full[full["docID"].isin(head_ids)].reset_index(drop=True).to_parquet(cp)
+
+    calls = []                                    # extract_canonical の呼び出し回数を計測
+    orig = tax.extract_canonical
+    monkeypatch.setattr(tax, "extract_canonical",
+                        lambda f: (calls.append(1), orig(f))[1])
+    resumed = ef.build_edinet_long(cache_path=cp, checkpoint_every=2)
+
+    assert len(calls) == 3                         # 既処理 3 件は再パースせず残り 3 件のみ
+    fa = full.sort_values("docID").reset_index(drop=True)
+    ra = resumed.sort_values("docID").reset_index(drop=True)
+    assert list(ra.columns) == list(fa.columns)    # 列一致
+    assert set(ra["docID"]) == set(fa["docID"])    # docID 集合一致
+    assert len(ra) == len(fa) == 6                 # 行数一致
+    for col in ["Code", "basis", "net_sales", "total_assets"]:
+        pd.testing.assert_series_equal(ra[col], fa[col], check_dtype=False,
+                                       check_names=False)
+
+
+def test_build_idempotent_rerun(tmp_path, monkeypatch):
+    # 完了後の再実行は +0 件・再パースなし・結果不変。
+    cp = _corpus(tmp_path, monkeypatch, n=6)
+    first = ef.build_edinet_long(cache_path=cp, checkpoint_every=2)
+    calls = []
+    orig = tax.extract_canonical
+    monkeypatch.setattr(tax, "extract_canonical",
+                        lambda f: (calls.append(1), orig(f))[1])
+    second = ef.build_edinet_long(cache_path=cp, checkpoint_every=2)
+    assert calls == []                             # 再パースなし
+    assert set(second["docID"]) == set(first["docID"])
+    assert len(second) == len(first) == 6
+    assert list(second.columns) == list(first.columns)
+
+
+def test_atomic_write_parquet_replaces_and_leaves_no_temp(tmp_path):
+    # temp→os.replace：既存を原子的に置換し、一時ファイルを残さない。
+    p = tmp_path / "x.parquet"
+    ef._atomic_write_parquet(pd.DataFrame({"a": [1, 2]}), p)
+    ef._atomic_write_parquet(pd.DataFrame({"a": [1, 2, 3]}), p)
+    assert len(pd.read_parquet(p)) == 3
+    assert not list(tmp_path.glob("*.tmp.*"))
+
+
+def test_build_checkpoint_main_intact_on_write_failure(tmp_path, monkeypatch):
+    # 2 回目の保存中に「クラッシュ」しても本体は直近チェックポイント（先頭 2 件）のまま読める。
+    cp = _corpus(tmp_path, monkeypatch, n=6)
+    state = {"n": 0}
+    orig = ef._atomic_write_parquet
+
+    def flaky(df, path):
+        state["n"] += 1
+        if state["n"] == 2:
+            raise RuntimeError("boom")
+        orig(df, path)
+
+    monkeypatch.setattr(ef, "_atomic_write_parquet", flaky)
+    with pytest.raises(RuntimeError):
+        ef.build_edinet_long(rebuild=True, cache_path=cp, checkpoint_every=2)
+    got = pd.read_parquet(cp)                       # 本体は破損せず読める
+    assert len(got) == 2                            # 1 回目チェックポイントぶんが保全
+
+
+def test_build_backcompat_signatures(tmp_path, monkeypatch):
+    # 既存呼び出し（引数なし／verbose=True）がそのまま動く。
+    cp = _corpus(tmp_path, monkeypatch, n=4)
+    a = ef.build_edinet_long(cache_path=cp)
+    b = ef.build_edinet_long(cache_path=cp, verbose=True)   # 再実行＝+0 件
+    assert len(a) == 4 and len(b) == 4
+    assert set(a["docID"]) == set(b["docID"])
+
+
+def test_panel_via_build_backcompat(tmp_path, monkeypatch):
+    # edinet_fundamentals_panel() 経由（build を引数なしで呼ぶ）が従来どおり as-of を返す。
+    _corpus(tmp_path, monkeypatch, n=4)
+    monkeypatch.setattr(ef, "_LONG_CACHE", tmp_path / "fundamentals_long.parquet")
+    reb = pd.to_datetime(["2025-12-31"])
+    pan = ef.edinet_fundamentals_panel(reb, ["net_sales", "total_assets"])
+    assert set(pan) == {"net_sales", "total_assets"}
+    assert pan["net_sales"].loc["2025-12-31"].notna().sum() == 4   # 4 銘柄が as-of で可視

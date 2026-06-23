@@ -14,6 +14,7 @@ from .judge import (
     GridVerdict, StrategyVerdict, judge_grid, regime_breakdown,
     walk_forward_regime_assignment,
 )
+from .meta_gate import fit_meta_gate, meta_win_probability
 from .report_html import to_html, write_html
 from .strategies_meanrev import (
     CointegratedPairs, JohansenBasket, LinearMeanReversion, RegimeGated,
@@ -21,7 +22,8 @@ from .strategies_meanrev import (
 )
 from .strategy import (
     CalendarStrategy, CompositeStrategy, CrossSectionalStrategy, EarningsRunup,
-    GapReversal, PairsStrategy, SignalTimingStrategy, Strategy,
+    GapReversal, MetaGatedStrategy, PairsStrategy, SignalTimingStrategy,
+    Strategy,
 )
 
 __all__ = [
@@ -35,6 +37,9 @@ __all__ = [
     "EarningsRunup",
     "CrossSectionalStrategy",
     "CompositeStrategy",
+    "MetaGatedStrategy",
+    "fit_meta_gate",
+    "meta_win_probability",
     "CointegratedPairs",
     "JohansenBasket",
     "LinearMeanReversion",

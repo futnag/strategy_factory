@@ -236,3 +236,35 @@ class CompositeStrategy(Strategy):
         if total is None:
             return pd.Series(dtype="float64")
         return total[total != 0.0]
+
+
+class MetaGatedStrategy(Strategy):
+    """一次戦略のウェイトに PIT な連続スケール(∈[0,1])を乗じる二次（メタ）ゲート。
+
+    メタラベリング（AFML ch.3.6/10）の適用層：scale は `meta_gate.fit_meta_gate` の
+    walk-forward 出力（index=リバランス日, 値∈[0,1] or NaN）。各 t で base のウェイトに
+    「≤t の最新スケール」を乗じる。NaN/未確定（warmup 未達・特徴欠損）は **1.0＝ゲート無効
+    ＝フル建玉**として扱う（保守的に「情報が無ければ素の一次に従う」）。
+
+    既存 `RegimeGated`（離散レジームラベル×手設定 sizing）と異なり、複数特徴量から学習した
+    連続確率→サイズを適用する。`scale` は事前計算済み PIT 系列＝`SignalTimingStrategy.signal`
+    や `EarningsRunup.days_panel` と同じ「PIT 系列を渡す」idiom で、`loc[:asof]` により先読み
+    不能。判定器は base と別試行として K 計上＝メタを足すだけで自動的に得しない（DP13）。
+    """
+
+    def __init__(self, base: Strategy, scale: pd.Series, name: str | None = None):
+        self.base = base
+        self.scale = scale.sort_index()
+        self.name = name or f"{base.name}|meta_gate"
+        self.params = {**base.params, "meta_gate": True}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        w = self.base.target_weights(asof)
+        if w.empty:
+            return w
+        hist = self.scale.loc[:asof.asof]             # ≤t の最新スケール＝先読み無
+        s = (float(hist.iloc[-1]) if len(hist) and pd.notna(hist.iloc[-1])
+             else 1.0)                                # 未確定/欠損＝ゲート無効（フル建玉）
+        if s == 0.0:
+            return pd.Series(dtype="float64")
+        return w * s

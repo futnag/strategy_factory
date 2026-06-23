@@ -150,6 +150,37 @@ f_dso/f_rms はIPO直後でクロス年度ΔDSOがパネルに無く False＝§7
 多様ゆえ）。(4) **最大の被覆欠落＝IPO直後**（オルツ）でクロス年度YoYが無い→次段は単一有報内の前年列で
 YoYを取る実装。(5) 型別の精査には機構レベルのラベルが要る。
 
+## 7.4 IPO直後の被覆補完（within-filing）と PU学習（Step 1-2 追加）
+
+**Step 1：within-filing ΔDSO**（`forensic_dso_within.py`）。有報には前年列(Prior1Year)が載るので、
+**単一有報内**で当年/前年の売掛金・売上を取れば初回提出（IPO直後）でもYoYが計算できる。
+- 被覆 46→**54件**に拡大。**不正企業の中央percentileが 47→58 に上昇**（クロス年度版より
+  「不正年 vs 直前年」の跳ねを的確に捉える）。lift は ΔDSO 2.4x / 売掛-売上 2.0x で同等。
+- **オルツが補完された**：ΔDSO **+8日(p87)**・売掛金成長−売上成長 **+18%(p86)**（クロス年度版
+  では1有報のみで取得不能だった）。閾値p90に僅差だが上位13-14%＝不正と整合＝§7.2の最大被覆
+  欠落を解消。
+→ 本番化は全社を within-filing で材化し、IPO直後も評価可能にする。
+
+**Step 2：PU学習**（`forensic_pu.py`）。確定不正を陽性・全firm-yearを未ラベルとし、
+class_weight 補正のロジスティック回帰（Elkan-Noto流）で複合スコアを学習。leave-one-fraud-out CV：
+
+| 評価点 | 学習スコア recall | **lift** | 手作りルール |
+|---|--:|--:|--:|
+| 上位10% | 27% | 2.7x | — |
+| 上位5% | 21% | 4.2x | — |
+| 上位2.7% | 13% | **4.8x** | 複合score≥3 = **4.8x**（同点） |
+
+- 学習係数＝**f_small(小規模監査) +0.62 が支配的**、recv_minus_sales +0.19、dso_change≈0。
+- **PU学習は手作りルールを上回らず同等（4.8x）**。**62陽性ではMLは良いドメインルールに勝てない**
+  ＝本プロジェクト通底の「データ希少で簡単な上積み無し」を再確認。
+- PUスコア上位15社中の不正は **1/15**＝**不正の希少さ（base1.4%）ゆえ最良スクリーンでも精度は低い**。
+  ＝確定診断ではなく**精査の優先順位付け**ツール。
+
+**Step 1-2 の統合結論**：(1) within-filing DSO動学が最良の単独先行指標で、IPO直後も評価可能に
+なった（オルツが p86-87 に浮上）。(2) 複合・PUとも lift ~4.8x が上限で、ML は少数陽性ではルールを
+超えない。(3) 高recall・高precision の検知器は原理的に作れない（不正の希少・多様）＝**用途は
+「IPO直後・高成長の収益偽装型を優先的に精査するスクリーン」**に確定。
+
 ## 8. 再現
 
 ```
@@ -167,5 +198,9 @@ python examples/forensic_dso_lift.py
 python examples/forensic_auditor_panel.py
 # 7) 複合フォレンジック・スコア（DSO動学＋監査人）
 python examples/forensic_composite.py
+# 8) IPO直後の被覆補完（within-filing ΔDSO）
+python examples/forensic_dso_within.py
+# 9) PU学習で複合スコア最適化
+python examples/forensic_pu.py
 ```
 関連：データ層は EDINET/J-Quants（docs/14・16・24）。判定器(judge_grid)とは別系統。

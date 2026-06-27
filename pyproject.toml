@@ -18,6 +18,16 @@ dev = ["pytest>=7.0"]
 live = ["ccxt>=4.0"]
 ops = ["psycopg[binary]>=3.1", "yfinance>=0.2"]  # Phase 2 無人運用（Actions/同期）
 dl = ["torch>=2.0"]  # 深層SDF（候補② Stage2・CPUで可）
+causal = [
+    "tigramite>=5.2",
+    "causal-learn>=0.1",
+    "networkx>=3.0",
+    "dowhy>=0.11",
+    "econml>=0.15",
+    "ruptures>=1.1",
+    "hmmlearn>=0.3",
+    "matplotlib>=3.7",
+]  # セクター因果レジーム検知（PCMCI+ / DoWhy / EconML）
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

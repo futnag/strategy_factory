@@ -397,6 +397,20 @@ def test_liquid_universe_mask_thresholds():
     assert bool(m.loc[idx[0], "C"]) is False           # 時価総額 5e9 < 1e10
 
 
+def test_liquid_universe_presets_smallcap_30b():
+    from invest_system.equities.universe import LIQUID_UNIVERSE_PRESETS, liquid_universe_mask
+    cfg = LIQUID_UNIVERSE_PRESETS["smallcap_30b"]
+    assert cfg["min_mcap"] == 3e9
+    idx = pd.to_datetime(["2025-01-31"])
+    close = pd.DataFrame({"A": [150.0]}, index=idx)
+    mcap = pd.DataFrame({"A": [4e9]}, index=idx)       # ¥40億＝30B床で OK、10B床で NG
+    adv = pd.DataFrame({"A": [1e8]}, index=idx)
+    m_sc = liquid_universe_mask(close, mcap, adv, **cfg)
+    m_prod = liquid_universe_mask(close, mcap, adv, **LIQUID_UNIVERSE_PRESETS["production"])
+    assert bool(m_sc.loc[idx[0], "A"]) is True
+    assert bool(m_prod.loc[idx[0], "A"]) is False
+
+
 # --- Part2 正準ポリシー（外れ値・欠損） ------------------------------------
 def test_winsorize_cross_sectional_clips_tails():
     from invest_system.equities.factors import winsorize_cross_sectional

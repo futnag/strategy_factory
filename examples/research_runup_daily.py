@@ -4,6 +4,14 @@ events.days_to_next_announcement（DiscDateから次回発表までの予測日�
 EarningsRunup（pre日前〜lag日前の銘柄をロング/窓外をショート）を日次で判定器にかける。
 発表日（ジャンプ）は跨がない。execution_lag=1（翌足執行）。
 
+PIT の分解（誤読防止）:
+- **シグナル/執行：PIT** — `days_to_next_announcement` は DiscDate 由来で先読みなし。
+  `execution_lag=1`（翌足執行）。
+- **ユニバース：`LIQ_DATE` の固定流動性スナップショット** — 全期間同一銘柄集合＝
+  生存者バイアス非除去・**非 PIT**（`point_in_time_universe` ではない）。
+- **用途：判定器/イベントロジックのデモ**。本番のクロスセクション検証は
+  PIT ユニバース系（`point_in_time_universe`）を使うこと。
+
 実行: $env:J_QUANTS_MIN_INTERVAL="0.7"; .venv\\Scripts\\python.exe examples\\research_runup_daily.py
 """
 from __future__ import annotations

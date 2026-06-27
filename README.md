@@ -8,6 +8,8 @@ statsmodels。OS 依存コードなし、パスは相対 / `pathlib`、改行は
 - [`docs/01-knowledge-base.md`](docs/01-knowledge-base.md) — 統合ナレッジベース（原理リファレンス。§11 に Ernie Chan 平均回帰／統計的裁定 補完）
 - [`docs/02-system-design.md`](docs/02-system-design.md) — システム設計書 v0.2
 - [`docs/03-research-findings.md`](docs/03-research-findings.md) — 研究知見・検証ファクトリ・データ資産（最新・最重要）
+- [`docs/24-data-catalog.md`](docs/24-data-catalog.md) — **データカタログ**（`data/` のどこに何が・どう読むか。AIエージェント向け索引）
+- [`docs/41`](docs/41-causal-daily-detection.md)〜[`44`](docs/44-value-pead-design.md) — 因果検知・調整・設計シリーズ（docs/27/28 を承け：日足因子→PCMCI+外生ドライバ→因果調整プレミアム→value+PEAD設計。結論：構造ブレイク監視は性能に先行せず／因果調整は推定衛生を改善するがレジーム依存は消えない＝予測より防御。設計面では長期保有・value+PEAD・分位0.2・暴落ディフェンスが頑健）
 
 ## 実装済みモジュール
 

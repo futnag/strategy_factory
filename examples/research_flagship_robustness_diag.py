@@ -13,6 +13,9 @@
 ② ローリング36ヶ月 年率Sharpe — switch とその2脚（value/pead_lt）が時系列で上向きか
    減衰かを点検。switch の安定性は「脚のローテーション」由来か、脚自身は減衰していないかを見る。
 
+① の旗艦 SR/n/skew/kurt はレジストリ読み取り（単一情報源）を優先し、無い場合は ② と同じ
+backtest 再計算にフォールバックする（以前はハードコード定数を使用していた）。
+
 実行: .venv\\Scripts\\python.exe examples\\research_flagship_robustness_diag.py
 """
 from __future__ import annotations
@@ -38,12 +41,22 @@ from invest_system.equities.fundamentals import load_fundamentals, point_in_time
 from invest_system.equities.factors import (
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors)
 from invest_system.research import (
-    AsOfView, CrossSectionalStrategy, CompositeStrategy, RegimeSwitch, backtest)
+    AsOfView, CrossSectionalStrategy, CompositeStrategy, RegimeSwitch, Strategy,
+    backtest)
 from invest_system.timeseries import vol_regime
-from invest_system.validation.dsr import expected_max_sharpe, probabilistic_sharpe_ratio
+from invest_system.data.external import load_external_prices
+from invest_system.research.strategies_tsmom import annualized_vol, blend_weights, tsmom_weights
+from invest_system.validation.dsr import _moments, expected_max_sharpe, probabilistic_sharpe_ratio
 
 START, END = "2016-07", "2026-05"
 DB = "data/research_trials.db"
+# ① ラダー対象：(表示名, scope, strategy_id)
+FLAGSHIP_LADDER = (
+    ("switch", "value_pead_switch", "switch(value@vol<=1,pead@vol==2)"),
+    ("combo_eqcap", "switch_tsmom_combo", "combo_eqcap"),
+)
+TSMOM_KEYS = ["nk225_fut", "sp500", "nasdaq_comp", "gold", "silver", "platinum",
+              "wti", "copper", "usdjpy", "eurjpy", "audjpy"]
 # 株式スリーブの月次ファクター候補として実際に競合した scope（同一探索族）
 EQUITY_FAMILY = [
     "value_xs", "value_pead_combo", "value_pead_longtilt", "value_pead_regime",
@@ -53,50 +66,8 @@ EQUITY_FAMILY = [
     "earnings_runup"]
 
 
-def global_k_ladder() -> None:
-    """① グローバルKデフレート・ラダー（レジストリは読むだけ）。"""
-    if not Path(DB).exists():
-        print("（レジストリ未検出：① スキップ）"); return
-    c = sqlite3.connect(DB); c.row_factory = sqlite3.Row
-    rows = c.execute("SELECT scope,sharpe,n_obs,skew,kurt FROM trials "
-                     "WHERE status='completed'").fetchall()
-    n_all = len(rows)
-    # 月次族 per-period 分散（全月次・n_obs<=250）
-    fam = [r["sharpe"] for r in rows if r["sharpe"] is not None and r["scope"] in EQUITY_FAMILY]
-    Nf, Vf = len(fam), float(np.var(fam, ddof=1))
-    # 全 scope を年率換算（頻度を揃える）
-    def ppy(n): return 12.0 if (n is None or n <= 250) else (52.0 if n <= 800 else 252.0)
-    ann = [r["sharpe"] * np.sqrt(ppy(r["n_obs"])) for r in rows if r["sharpe"] is not None]
-    Va = float(np.var(ann, ddof=1)); sq12 = np.sqrt(12.0)
-    ft = {"switch": dict(sr=0.279378, n=118, sk=1.04909, ku=5.73495, kA=4, vA=0.0076),
-          "combo_eqcap": dict(sr=0.302290, n=118, sk=1.04918, ku=4.67339, kA=4, vA=0.0097)}
-    # 帰無ノイズ分散（per-period 月次・SR≈0 の推定分散 ≈ 1/n）
-    V_null = 1.0 / 118.0
-    print("=== ① グローバルKデフレート・ラダー（旗艦 DSR） ===")
-    print(f"  族 N={Nf}（月次per-period）V={Vf:.4f} / 全 N={n_all} V[年率]={Va:.3f}")
-    print(f"  {'戦略':12s} {'年率SR':>6s} | {'A:scope':>8s} | {'B:族(観測V)':>10s} | "
-          f"{'B:族(帰無V)':>10s} | {'C:全715':>8s}")
-    for nm, d in ft.items():
-        srA = expected_max_sharpe(d["kA"], d["vA"])
-        dA = probabilistic_sharpe_ratio(d["sr"], srA, d["n"], d["sk"], d["ku"])
-        srB = expected_max_sharpe(Nf, Vf)
-        dB = probabilistic_sharpe_ratio(d["sr"], srB, d["n"], d["sk"], d["ku"])
-        srBn = expected_max_sharpe(Nf, V_null)
-        dBn = probabilistic_sharpe_ratio(d["sr"], srBn, d["n"], d["sk"], d["ku"])
-        srC = expected_max_sharpe(n_all, Va) / sq12
-        dC = probabilistic_sharpe_ratio(d["sr"], srC, d["n"], d["sk"], d["ku"])
-        print(f"  {nm:12s} {d['sr']*sq12:+6.2f} | {dA:8.3f} | {dB:10.3f} | "
-              f"{dBn:10.3f} | {dC:8.3f}")
-    c.close()
-    print()
-
-
-def roll_sharpe(r: pd.Series, win: int = 36) -> pd.Series:
-    return (r.rolling(win).mean() / r.rolling(win).std(ddof=1)) * np.sqrt(12.0)
-
-
-def rolling_decay() -> None:
-    """② ローリング36ヶ月 年率Sharpe（backtest 直叩き・レジストリ不使用）。"""
+def _build_flagship_sleeves() -> dict[str, pd.Series]:
+    """② と同じ backtest 再計算（value / pead_lt / combo / switch）。"""
     listed = jq.fetch_listed_info()
     snaps = fetch_month_end_snapshots(START, END)
     adj, raw, turn = (assemble_panel(snaps, c) for c in ("AdjC", "C", "Va"))
@@ -123,8 +94,152 @@ def rolling_decay() -> None:
     pead_lt = CrossSectionalStrategy(pead, 0.2, name="pead_longtilt", long_only=True)
     combo = CompositeStrategy([value_ls, pead_lt], [0.5, 0.5], name="value+pead_lt")
     switch = RegimeSwitch(vol_m, {0: value_ls, 1: value_ls, 2: pead_lt}, name="switch")
-    series = {s.name: backtest(s, view, costs_bps=15.0).returns.dropna()
-              for s in (value_ls, pead_lt, combo, switch)}
+    return {s.name: backtest(s, view, costs_bps=15.0).returns.dropna()
+            for s in (value_ls, pead_lt, combo, switch)}
+
+
+def _combo_eqcap_monthly_returns() -> pd.Series:
+    """switch_tsmom_combo の combo_eqcap 月次ネット（レジストリ無時のフォールバック）。"""
+    sleeves = _build_flagship_sleeves()
+    rs = sleeves["switch"]
+    cl = load_external_prices(TSMOM_KEYS, field="close")
+    op = load_external_prices(TSMOM_KEYS, field="open")
+    cl_ff = cl.ffill(limit=7)
+    m_close = cl_ff.groupby(cl_ff.index.to_period("M")).tail(1)
+    rebal = m_close.index
+    vol_m = annualized_vol(cl, window=63, floor=0.05).ffill(limit=7).reindex(rebal)
+    fill_px = op.bfill(limit=3).shift(-1).reindex(rebal)
+    view = AsOfView({"close": fill_px})
+    sets = [tsmom_weights(m_close, vol_m, lb, vol_target=0.10) for lb in (3, 6, 12)]
+
+    class _TsmomReplay(Strategy):
+        def __init__(self, weights):
+            self._w = weights
+            self.name = "tsmom_blend"
+            self.params = {}
+
+        def target_weights(self, asof):
+            return self._w.get(asof.asof, pd.Series(dtype="float64"))
+
+    strat = _TsmomReplay(blend_weights(sets))
+    rt = backtest(strat, view, costs_bps=5.0).returns.dropna()
+    s = rs.copy()
+    s.index = rs.index.to_period("M")
+    t = rt.copy()
+    t.index = rt.index.to_period("M")
+    t = t[~t.index.duplicated(keep="last")]
+    months = s.index.intersection(t.index)
+    aligned = pd.DataFrame({"switch": s.reindex(months), "tsmom": t.reindex(months)}).dropna()
+    return 0.5 * aligned["switch"] + 0.5 * aligned["tsmom"]
+
+
+def _moments_dict(returns: pd.Series) -> dict:
+    sr, sk, ku, n = _moments(returns.dropna().values)
+    return {"sr": sr, "n": n, "sk": sk, "ku": ku}
+
+
+def _read_registry_trial(conn: sqlite3.Connection, scope: str,
+                         strategy_id: str) -> dict | None:
+    """レジストリから完了試行を読み取る（書き込みなし）。"""
+    row = conn.execute(
+        "SELECT sharpe, n_obs, skew, kurt FROM trials "
+        "WHERE scope=? AND strategy_id=? AND status='completed' "
+        "AND sharpe IS NOT NULL ORDER BY completed_at DESC LIMIT 1",
+        (scope, strategy_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return {"sr": row["sharpe"], "n": row["n_obs"], "sk": row["skew"], "ku": row["kurt"]}
+
+
+def _scope_k_and_var(conn: sqlite3.Connection, scope: str) -> tuple[int, float]:
+    rows = conn.execute(
+        "SELECT sharpe FROM trials WHERE scope=? AND status='completed' "
+        "AND sharpe IS NOT NULL", (scope,),
+    ).fetchall()
+    k = conn.execute(
+        "SELECT COUNT(*) AS k FROM trials WHERE scope=? AND status='completed'",
+        (scope,),
+    ).fetchone()["k"]
+    vals = [r["sharpe"] for r in rows]
+    v = float(np.var(vals, ddof=1)) if len(vals) >= 2 else 0.0
+    return int(k), v
+
+
+def _resolve_ladder_stats(conn: sqlite3.Connection | None, label: str, scope: str,
+                          strategy_id: str, fallback_returns: pd.Series) -> dict:
+    """レジストリ優先 → backtest 再計算フォールバック。"""
+    stats = _read_registry_trial(conn, scope, strategy_id) if conn is not None else None
+    source = "registry"
+    if stats is None:
+        stats = _moments_dict(fallback_returns)
+        source = "backtest"
+    kA, vA = _scope_k_and_var(conn, scope) if conn is not None else (4, 0.0)
+    stats = dict(stats)
+    stats["kA"] = kA
+    stats["vA"] = vA
+    stats["source"] = source
+    return stats
+
+
+def global_k_ladder() -> None:
+    """① グローバルKデフレート・ラダー（レジストリは読むだけ・K 不変）。"""
+    conn = None
+    if Path(DB).exists():
+        conn = sqlite3.connect(DB)
+        conn.row_factory = sqlite3.Row
+    else:
+        print("（レジストリ未検出：① は backtest 再計算のみ）")
+    sleeves = _build_flagship_sleeves()
+    combo_ret = _combo_eqcap_monthly_returns()
+    rows = []
+    if conn is not None:
+        rows = conn.execute(
+            "SELECT scope,sharpe,n_obs,skew,kurt FROM trials WHERE status='completed'"
+        ).fetchall()
+    n_all = len(rows)
+    fam = [r["sharpe"] for r in rows if r["sharpe"] is not None and r["scope"] in EQUITY_FAMILY]
+    Nf, Vf = len(fam), float(np.var(fam, ddof=1)) if len(fam) >= 2 else 0.0
+
+    def ppy(n):
+        return 12.0 if (n is None or n <= 250) else (52.0 if n <= 800 else 252.0)
+
+    ann = [r["sharpe"] * np.sqrt(ppy(r["n_obs"])) for r in rows if r["sharpe"] is not None]
+    Va = float(np.var(ann, ddof=1)) if len(ann) >= 2 else 0.0
+    sq12 = np.sqrt(12.0)
+    fallbacks = {"switch": sleeves["switch"], "combo_eqcap": combo_ret}
+    ladder = {}
+    for label, scope, sid in FLAGSHIP_LADDER:
+        ladder[label] = _resolve_ladder_stats(conn, label, scope, sid, fallbacks[label])
+    n_ref = next(iter(ladder.values()))["n"]
+    V_null = 1.0 / float(n_ref) if n_ref else 1.0 / 118.0
+    print("=== ① グローバルKデフレート・ラダー（旗艦 DSR） ===")
+    print(f"  族 N={Nf}（月次per-period）V={Vf:.4f} / 全 N={n_all} V[年率]={Va:.3f}")
+    print(f"  {'戦略':12s} {'年率SR':>6s} {'src':>9s} | {'A:scope':>8s} | {'B:族(観測V)':>10s} | "
+          f"{'B:族(帰無V)':>10s} | {'C:全':>8s}")
+    for nm, d in ladder.items():
+        srA = expected_max_sharpe(d["kA"], d["vA"])
+        dA = probabilistic_sharpe_ratio(d["sr"], srA, d["n"], d["sk"], d["ku"])
+        srB = expected_max_sharpe(Nf, Vf)
+        dB = probabilistic_sharpe_ratio(d["sr"], srB, d["n"], d["sk"], d["ku"])
+        srBn = expected_max_sharpe(Nf, V_null)
+        dBn = probabilistic_sharpe_ratio(d["sr"], srBn, d["n"], d["sk"], d["ku"])
+        srC = expected_max_sharpe(n_all, Va) / sq12 if n_all >= 2 else 0.0
+        dC = probabilistic_sharpe_ratio(d["sr"], srC, d["n"], d["sk"], d["ku"])
+        print(f"  {nm:12s} {d['sr']*sq12:+6.2f} {d['source']:>9s} | {dA:8.3f} | {dB:10.3f} | "
+              f"{dBn:10.3f} | {dC:8.3f}")
+    if conn is not None:
+        conn.close()
+    print()
+
+
+def roll_sharpe(r: pd.Series, win: int = 36) -> pd.Series:
+    return (r.rolling(win).mean() / r.rolling(win).std(ddof=1)) * np.sqrt(12.0)
+
+
+def rolling_decay() -> None:
+    """② ローリング36ヶ月 年率Sharpe（backtest 直叩き・レジストリ不使用）。"""
+    series = _build_flagship_sleeves()
     rs = pd.DataFrame({k: roll_sharpe(v) for k, v in series.items()}).dropna(how="all")
     print("=== ② ローリング36ヶ月 年率Sharpe（半年ごと） ===")
     print(f"  {'窓終端':>9s} {'value':>7s} {'pead_lt':>7s} {'combo':>7s} {'switch':>7s}")

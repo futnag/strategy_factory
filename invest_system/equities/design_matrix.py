@@ -72,13 +72,18 @@ _N225_IV = Path("data/supplemental/n225_iv.parquet")
 
 def production_universe(rebal: Optional[pd.DatetimeIndex] = None,
                        min_price: float = 100.0, min_mcap: float = 1e10,
-                       min_adv: float = 5e7, common_only: bool = True) -> pd.DataFrame:
-    """本番ユニバース mask（株価¥100・時価総額¥10B・ADV60¥50M・普通株）を月末で構築（PIT）。
+                       min_adv: float = 5e7, common_only: bool = True,
+                       preset: Optional[str] = None) -> pd.DataFrame:
+    """本番ユニバース mask（株価¥100・時価総額床・ADV60¥50M・普通株）を月末で構築（PIT）。
 
     rebal 省略時は materialized 月末（feature_store の beta 等）を採用。判定と診断で同一の
     ユニバース定義を共有するため、ここに一元化（docs/19・liquid_universe_mask の絶対しきい値版）。
+    preset を指定すると universe.LIQUID_UNIVERSE_PRESETS のしきい値を採用（Phase 4b 等）。
     """
-    from .universe import filter_common_stocks, liquid_universe_mask
+    from .universe import LIQUID_UNIVERSE_PRESETS, filter_common_stocks, liquid_universe_mask
+    if preset is not None:
+        cfg = LIQUID_UNIVERSE_PRESETS[preset]
+        min_price, min_mcap, min_adv = cfg["min_price"], cfg["min_mcap"], cfg["min_adv"]
     close = store.load_wide("C").resample("ME").last()
     if rebal is None:
         rebal = fs.load_feature("beta").index

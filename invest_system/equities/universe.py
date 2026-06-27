@@ -15,6 +15,13 @@ import pandas as pd
 #   ETF・REIT 等は 0109（その他）
 _COMMON_MARKETS = {"0111", "0112", "0113"}
 
+# Phase 4 本番ユニバースの絶対しきい値プリセット（PIT・先読み無し）。
+# production＝docs/19（¥10B 床）、smallcap_30b＝docs/21 Phase 4b（¥30B 床・唯一の変更点）。
+LIQUID_UNIVERSE_PRESETS: dict[str, dict[str, float]] = {
+    "production": {"min_price": 100.0, "min_mcap": 1e10, "min_adv": 5e7},
+    "smallcap_30b": {"min_price": 100.0, "min_mcap": 3e9, "min_adv": 5e7},
+}
+
 
 def filter_common_stocks(listed: pd.DataFrame) -> pd.DataFrame:
     """普通株のみ抽出（市場区分で判定、無ければ素通し）。"""

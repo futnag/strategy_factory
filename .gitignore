@@ -10,8 +10,11 @@ __pycache__/
 venv/
 
 # data & artifacts (do not commit market data or trial DBs)
-# NOTE: root-anchored (/data/) so it does NOT ignore the invest_system/data package
-/data/
+# NOTE: root-anchored (/data/*) so it does NOT ignore the invest_system/data package.
+# We ignore the *contents* of data/ (not the dir itself) so a single index file can be
+# re-included below. Re-inclusion is impossible if the parent dir itself is excluded.
+/data/*
+!/data/README.md
 *.parquet
 *.duckdb
 *.db

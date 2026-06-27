@@ -157,7 +157,17 @@ deep-research（学術＋実務・敵対的検証）で最新手法を調査 →
   - **判断＝(C)へ：#2(SDF/regime)へpivot**（infra不要・既存データ・失敗型de-riskを正面修正）。
     テキスト軸の残り＝(A)有報の埋め込み版＝高コスト低EV（飽和の根が"変化が小さい"＝表現では救えない見込み＋H2棄却）／
     研究が最も支持する**news埋め込み版**(Chen-Kelly-Xiu)は別物だが TDnet/ニュース取得＋埋め込みの大投資要＝保留。
-- 🔬 **#2 潜在マクロ状態×no-arbitrage SDF** ← **次ここ**（regime-conditioningの"正解"＋GKXの切り口変更＝大型/SDF目的・既存データ・infra不要）。
+- ❌ **#2 潜在マクロ状態×no-arbitrage SDF**（Stage1+2 判定済・FAIL）。設計＝`docs/46`。実装＝`portfolio/sdf.py`+`portfolio/deep_sdf.py`+`research_conditional_sdf.py`+`research_deep_sdf.py`（テスト8緑）。torch＝optional `[dl]`。
+  - **Stage1（KNS縮小SDF・numpy）判定＝FAIL**（scope=`conditional_sdf`,K=5。最良 sdf_cond(state) SR+0.38/**DSR0.52**/maxDD-8.7%/容量¥3億）。
+    - ◎**H1 支持**：SDF目的（cond+0.38・naive+0.34）が **GKX予測(-0.23)・単純合成(-0.19) を明確に上回る**＝「予測でなく価格付け」の切り口は有効。条件付け>無条件(-0.16)も確認。
+    - ✗**H2 不発**：動的状態+0.38 ≈ 最新水準(負制御)+0.34＝**負コントロールが崩壊せず**＝numpy のtrailing-change状態が survey の LSTM 潜在状態を再現できていない（dynamic と latest が区別できていない）。
+    - ✗**OOS負・直近死**：サブ期間 2019-23 +0.99 → 2023-26 **-0.17**、IS+0.64 → **OOS-0.37**＝また直近regimeで死。
+  - **解釈**: SDF目的がキッチンシンク予測(GKX)・単純合成を上回るのは**本物の方法論的収穫**（GKX帰無の切り口変更が効いた）。だが認定未達＋OOS負＋H2はnumpy状態では再現不能。
+  - **Stage2（深層GRU-SDF・torch）判定＝FAIL**（同scope K=7。deep_gru/deep_linear とも SR-0.03/**DSR0.12**）。
+    - ⚠**GRU と Linear(負制御)が同一結果**＝小データ(~84月)で GRU が状態依存を学習できず**縮退(underfit)**。numpy KNS(+0.38)に**負ける**。
+    - ＝H2 は深層でも未実証（CPZ は数十年×数千銘柄で訓練。日本月次では deep が効かない＝データ不足）。
+  - **#2 結論**: ◎**H1は本物の収穫**＝SDF目的(numpy KNS)が GKX予測・単純合成を明確に上回る（GKX帰無の切り口変更が有効）。
+    ✗だが認定未達(DSR0.52)＋**OOS負**(直近regime死)＋H2未実証＋深層は小データで無効。**#2 打ち止め**。
 - ⬜ #3 ガバナンス開示イベント条件付けvalue（東証PBR改革リスト・要value残差化）。
 - ⬜ #4 GKX欠損値補完で再検証 / #5 過学習フロンティア・per-factor regime(SJM) / #6 取引先リードラグ(低容量・MCP)。
 
@@ -191,3 +201,11 @@ deep-research（学術＋実務・敵対的検証）で最新手法を調査 →
   ＝TF-IDFは内容仮説の公正検定にならず（飽和）。決定待ち：(A)Stage2埋め込み/(B)Stage1.5脱飽和/(C)#2へ。
 - 2026-06-27: #1 Stage1.5（節絞り＋trailing-IDF）＝**FAIL**（DSR0.44）。脱飽和ほぼ効かず（0.965→0.953）＝有報叙述の年次変化が極小。
   H2再び逆（小型<大型）＝機構2版で一貫棄却。**cheap-text 打ち止め**。判断＝(C) #2(SDF/regime)へpivot。テキスト軸全体（cheap2版）＝独立だがedge無し、を厳密確認。
+- 2026-06-27: テキストα一式コミット＋push（7e02ce6 コード / 3f50bd9 docs45+TODO。origin ba83b64..3f50bd9）。
+- 2026-06-27: #2 条件付きSDF を事前登録（`docs/46`）。次=Stage1（KNS縮小SDF・numpy/sklearn）実装。
+- 2026-06-27: #2 Stage1（numpy KNS-SDF）＝**FAIL**（DSR0.52・OOS負）。**収穫＝SDF目的が GKX予測/合成を明確に上回る**（H1支持）。
+  だがH2不発（numpy状態で負制御が崩壊せず）＋直近死。決定待ち：(A)深層SDF(torch) or (B)記録して#4/#3へ。
+  **メタ観察**: 9連敗＋テキスト2版＋SDF＝ほぼ全て「2016-23で機能→2023-26で死/OOS負」。直近の資本規律レジームが系統信号に敵対的、valueのみ耐久、を再々確認。
+- 2026-06-27: #2 Stage2（深層GRU-SDF・torch CPU導入）＝**FAIL**（DSR0.12・GRU≡Linear＝小データで縮退）。深層は日本月次では無効。
+  **#2総括**: H1（SDF目的>予測ML/合成）＝本物の収穫。だが認定未達＋OOS負＋H2未実証。**サーベイ上位2推奨（テキスト#1・SDF#2）を徹底検証し両方FAIL。**
+  **強い推奨＝consolidate**（#2一式コミット/push＋docs/03に「frontier手法#1#2の知見」追記）。独立α探索は収穫逓減が決定的。価値＝platform＋documented負＋実運用 value/PEAD コア。残り#3/#4は低EV。

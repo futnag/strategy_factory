@@ -1023,6 +1023,27 @@ Blitz et al. 2011・2020）を検証した。docs/04 P3-H の事前登録どお�
 「**platform が成果物**」という本リポジトリの設計思想の最強の実証。共通の地形：効いて見えるものは**直近2023-26の
 "資本規律(PBR改革)"レジームで value と同根**であり、独立な新規源ではない。
 
+### 6.21 フロンティア手法の検証 — テキストα・条件付きSDF（2026-06-27）
+
+§6.20 の9連敗を受け、最新研究サーベイ（deep-research・学術＋実務・敵対的検証）で**未踏の2軸**を特定し検証。
+事前登録＝`docs/45`（テキスト）・`docs/46`（SDF）。
+
+**#1 開示テキストα（Lazy Prices／LLM埋め込み）**: EDINET 有報の叙述テキスト（53kキャッシュ・PIT・MD&A）の前年比変化を検定。
+- TF-IDF（全MD&A）＝FAIL(DSR0.36)、節絞り＋trailing-IDF＝FAIL(DSR0.44)。**独立(vs value/mom/size ρ≈0)だが edge 無し**。
+  日本の有報叙述は**年次変化が極小**（脱飽和しても中央類似度0.95+）＋小型underreaction機構は2版で一貫棄却。
+  ＝**cheap-text に横断αは無い**を厳密確認。news埋め込み版(Chen-Kelly-Xiu)は別物だが TDnet取得＋埋め込みの大投資要＝保留。
+
+**#2 条件付き no-arbitrage SDF（regime-conditioning の"正解"／GKX の切り口変更）**:
+- ◎**収穫＝H1**: KNS 縮小接線（SDF目的）が **GKX 予測ML・単純合成を明確に上回る**（+0.38 vs −0.23/−0.19）。
+  ＝「予測でなく価格付け」の切り口が有効＝GKX帰無の正しい再解釈。**実運用の sleeve 合成を 等加重/HRP → SDF縮小接線
+  に置換する示唆**（採用検討の価値あり＝本アークで唯一の建設的収穫）。
+- ✗ だが認定未達(DSR0.52)＋**OOS負**。H2（動的状態 vs 最新値）は numpy proxy でも深層GRU(torch)でも未実証
+  （深層は日本月次の小データで縮退＝GRU≡Linear）。
+
+**総括**: 最新手法・最も直交な2軸でもなお独立な耐久エッジは出ず、§6.20＋§7（value のみ耐久）を**最大限に補強**。
+実装＝`equities/disclosure_text.py`・`portfolio/sdf.py`・`portfolio/deep_sdf.py`、研究＝`examples/research_text_*.py`・
+`research_conditional_sdf.py`・`research_deep_sdf.py`、判定＝`trials` の `disclosure_text_change`・`conditional_sdf` scope。
+
 ---
 
 ## 7. 最有力候補 — value ＋ ロングティルト PEAD

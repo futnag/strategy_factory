@@ -137,14 +137,12 @@
 
 ## 7. 未来のタスク（TODO）
 
-> **当面の運用＝手動**：`examples/update_tostnet.py` を **2週間以内ごと**（理想は数日に1回）に実行して
-> 前向きに蓄積する。ページは2週間ローリングなので、これを超えて空けるとその間は恒久欠測になる。
+> **運用＝GitHub Actions 統合済み（2026-06-28）**：`strategy-factory-ops/.github/workflows/phase2.yml`
+> が毎晩 `update_tostnet.py` を実行（`continue-on-error`）。JPX が datacenter IP を 403 する場合は
+> ログだけ残して旗艦運用は継続。到達性は Actions ログで監視。
 
-- [ ] **T1: 日次自動化**（優先・方式未定）。当面は手動運用、追って自動化する。
-  - 候補A（推奨）: ローカル **Windows タスクスケジューラ**で毎営業日 `examples\update_tostnet.py`
-    （自宅IPで成功実績・無料・確実。PCスリープ時は次回 catch-up。2週間窓で猶予あり）。登録は設定変更のため要確認。
-  - 候補B: クラウド **GitHub Actions**（既存夜間基盤 `strategy-factory-ops` 相乗り）。ただし JPX が
-    データセンターIPを **403 で遮断する懸念** → **使い捨てワークフローで到達性を1回検証**してから採否を決める。
+- [x] **T1: 日次自動化** — GitHub Actions（`phase2.yml`）に統合。403 時は `continue-on-error` でスキップ。
+  - ローカル Windows タスクスケジューラは**不要**（フォールバックとして手動実行は可）。
   - 関連（任意）: 取得後に Supabase へ push → 既存 Vercel ダッシュボードに「直近の超大口」を表示。
 - [ ] **T2: J-Quants Pro 確認・移行**。`j-quants@jpx.co.jp` に料金・履歴期間・小規模契約可否を照会 →
   妥当なら `/prices/tostnet_super_large_lot`（同一9列スキーマ）＋`off_auction_distribution`／

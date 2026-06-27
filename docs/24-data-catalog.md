@@ -60,6 +60,8 @@
 | 研究HTMLレポート | `reports/*.html` | HTML | ブラウザ | `examples/research_*.py` | 随時 |
 | **試行レジストリ** | `research_trials.db` | SQLite（`trials` 表） | `invest_system/validation/` | 検証ハーネス | 随時・追記 |
 | M&A Online（TOB履歴） | `manual/maonline/` | md（生）＋csv（parsed） | `parsed/*.csv` を read | 手動DL→`parse_maonline_md.py` | 手動 |
+| **TDnet 適時開示一覧** | `tdnet/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `tdnet.load_tdnet()` / `filter_tagged()` | `sources/tdnet.py` | 日次・前向き蓄積 |
+| **JPX ToSTNeT 超大口** | `jpx_tostnet/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `jpx_tostnet.load_tostnet()` | `sources/jpx_tostnet.py` | 日次・前向き蓄積 |
 
 ---
 
@@ -99,8 +101,9 @@ EDINET 系（イベント戦略 C1/C2・財務）は別ベース `data/edinet/`�
 
 #### `daily/{YYYYMMDD}.parquet` — 全銘柄日次 OHLCV
 - 1日1ファイル・その日の全上場銘柄（例 4,335行）。2016-06〜。列16本。
-- 主要列: `Date, Code, O, H, L, C`（始高安終）, `UL, LL`（制限値幅 上/下限）, `Vo`（出来高）,
-  `Va`（売買代金）, `AdjFactor`（調整係数）, `AdjO/AdjH/AdjL/AdjC`（調整後OHLC）, `AdjVo`。
+- 主要列: `Date, Code, O, H, L, C`（始高安終）, `UL, LL`（**ストップ高/安ヒットフラグ＝0/1**。当日に
+  制限値幅へ達したか否か。**値幅境界の「価格」ではない**＝`close>=UL` 等の価格比較は誤り。§5-10）,
+  `Vo`（出来高）, `Va`（売買代金）, `AdjFactor`（調整係数）, `AdjO/AdjH/AdjL/AdjC`（調整後OHLC）, `AdjVo`。
 - **ロード（推奨）**:
   ```python
   from invest_system.equities.panel import load_daily_panel
@@ -149,6 +152,8 @@ EDINET 系（イベント戦略 C1/C2・財務）は別ベース `data/edinet/`�
 - `wide/{field}.parquet`: index=Date, columns=銘柄コード。1ファイル/フィールド
   （`open, high, low, close, volume, turnover, adj_factor, upper_limit, lower_limit` ＋
   派生 `adj_close, adj_open, adj_high, adj_low`）。規模 約2,444日 × 5,371銘柄。
+  ⚠ **`upper_limit`/`lower_limit` は 0/1 のストップ高/安フラグ**（価格ではない）。引け張り付き
+  （執行不能）の判定は `equities/frictions.py:limit_lock_flags`＝`UL==1 かつ close>=high` を使う。
   ```python
   from invest_system.data.store import load_wide
   c  = load_wide("close")        # 生終値
@@ -243,6 +248,28 @@ fingerprint, preregistered_at, completed_at`。**多重検定補正（DSR）と�
 - ⚠ **`_displayed` 系列（`price_displayed_jpy, premium_displayed_pct, end_date_displayed`）は
   バンプ後の最終値**。エントリ判断には使えない（PIT非安全）。当初価格は EDINET 側を使う。
 
+### 3.11 `tdnet/`・`jpx_tostnet/` — オルタナティブデータ（前向き蓄積）
+
+公式 API なし・**バックフィル不可**＝今日から蓄積する種まきデータ。詳細設計は `docs/47`。
+
+#### `tdnet/{YYYYMMDD}.parquet` — TDnet 適時開示一覧
+- 1日1ファイル。列: `disclosure_date/time, code, company_name, title, pdf_url, xbrl_url,
+  exchange, doc_id, event_tags, source`。
+- **ロード**:
+  ```python
+  from invest_system.data.sources.tdnet import load_tdnet, filter_tagged
+  df = load_tdnet(start="20260601")
+  buybacks = filter_tagged(df, "buyback_announce")
+  ```
+- 取得: `examples/update_tdnet.py`（日次・冪等）。公開閲覧は**約1ヶ月のみ**。
+- `event_tags` は表題キーワード分類（`buyback_announce`, `tob_related`, `guidance_revision` 等）。
+
+#### `jpx_tostnet/{YYYYMMDD}.parquet` — ToSTNeT 超大口約定（≥50億円）
+- 1日1ファイル。9列（J-Quants Pro `/prices/tostnet_super_large_lot` と同一構造）。
+- **ロード**: `from invest_system.data.sources.jpx_tostnet import load_tostnet, daily_summary`
+- 取得: `examples/update_tostnet.py`。**2週間以内ごと**に実行（ページは約2週間で消える）。
+- 方針書: `tostnet_monitoring_plan.md`
+
 ---
 
 ## 4. 研究行列 `phase4/`・`phase4b/`（GKX）
@@ -284,6 +311,10 @@ meta = json.load(open("data/phase4b/meta.json", encoding="utf-8"))
 8. **C2ユニバースは purpose フィルタで定義**（`is_important_proposal`＝「重要提案行為等」）。
    名簿で手選びするのは in-sample 選択＝禁止。名簿はあくまで名寄せ/スタイルタグ/重複排除の補助。
 9. **試行数 K は `research_trials.db` で管理**。閾値の後付けチューニング（hindsight）禁止。
+10. **`UL`/`LL`（wide では `upper_limit`/`lower_limit`）は 0/1 のストップ高/安ヒットフラグ**＝値幅境界の
+    「価格」ではない。ほぼ全行 0 のため `close>=UL` のような価格比較は常時 True 化して破綻する（実害例
+    あり）。ストップ高/安**イベント**は `UL==1`/`LL==1`、**引け張り付き**（執行不能）は
+    `frictions.limit_lock_flags`（`UL==1 かつ close>=high` / `LL==1 かつ close<=low`）で判定する。
 
 ---
 

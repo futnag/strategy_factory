@@ -212,6 +212,26 @@ class CrossSectionalStrategy(Strategy):
         return w[w != 0.0]
 
 
+class PrecomputedWeights(Strategy):
+    """事前計算済みの目標ウェイト panel（Date×Code）をそのまま返す薄い戦略。
+
+    SDF 接線のような**連続ウェイト**（分位 L/S でない）を判定器に載せるためのアダプタ。
+    weights は各リバランス日 t で t 時点に既知（PIT＝walk-forward 等で先読みなく構築済み）であること。
+    """
+
+    def __init__(self, weights: pd.DataFrame, name: str = "precomputed",
+                 params: dict | None = None):
+        self.weights = weights.sort_index()
+        self.name = name
+        self.params = params or {"precomputed": True}
+
+    def target_weights(self, asof: AsOf) -> pd.Series:
+        if asof.asof not in self.weights.index:
+            return pd.Series(dtype="float64")
+        w = self.weights.loc[asof.asof].dropna()
+        return w[w != 0.0]
+
+
 class CompositeStrategy(Strategy):
     """複数の戦略の目標ウェイトを重み付きで合算する（戦略ポートフォリオ）。
 

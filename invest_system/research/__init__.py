@@ -22,8 +22,8 @@ from .strategies_meanrev import (
 )
 from .strategy import (
     CalendarStrategy, CompositeStrategy, CrossSectionalStrategy, EarningsRunup,
-    GapReversal, MetaGatedStrategy, PairsStrategy, SignalTimingStrategy,
-    Strategy,
+    GapReversal, MetaGatedStrategy, PairsStrategy, PrecomputedWeights,
+    SignalTimingStrategy, Strategy,
 )
 
 __all__ = [
@@ -38,6 +38,7 @@ __all__ = [
     "CrossSectionalStrategy",
     "CompositeStrategy",
     "MetaGatedStrategy",
+    "PrecomputedWeights",
     "fit_meta_gate",
     "meta_win_probability",
     "CointegratedPairs",

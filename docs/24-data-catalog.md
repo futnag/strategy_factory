@@ -62,6 +62,7 @@
 | M&A Online（TOB履歴） | `manual/maonline/` | md（生）＋csv（parsed） | `parsed/*.csv` を read | 手動DL→`parse_maonline_md.py` | 手動 |
 | **TDnet 適時開示一覧** | `tdnet/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `tdnet.load_tdnet()` / `filter_tagged()` | `sources/tdnet.py` | 日次・前向き蓄積 |
 | **JPX ToSTNeT 超大口** | `jpx_tostnet/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `jpx_tostnet.load_tostnet()` | `sources/jpx_tostnet.py` | 日次・前向き蓄積 |
+| **JSF 貸借・逆日歩** | `jsf/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `jsf.load_jsf()` / `borrow_cost_bps_panel()` | `sources/jsf.py` | 日次・前向き蓄積（手動DL） |
 
 ---
 
@@ -248,7 +249,7 @@ fingerprint, preregistered_at, completed_at`。**多重検定補正（DSR）と�
 - ⚠ **`_displayed` 系列（`price_displayed_jpy, premium_displayed_pct, end_date_displayed`）は
   バンプ後の最終値**。エントリ判断には使えない（PIT非安全）。当初価格は EDINET 側を使う。
 
-### 3.11 `tdnet/`・`jpx_tostnet/` — オルタナティブデータ（前向き蓄積）
+### 3.11 `tdnet/`・`jpx_tostnet/`・`jsf/` — オルタナティブデータ（前向き蓄積）
 
 公式 API なし・**バックフィル不可**＝今日から蓄積する種まきデータ。詳細設計は `docs/47`。
 
@@ -269,6 +270,19 @@ fingerprint, preregistered_at, completed_at`。**多重検定補正（DSR）と�
 - **ロード**: `from invest_system.data.sources.jpx_tostnet import load_tostnet, daily_summary`
 - 取得: `examples/update_tostnet.py`。**2週間以内ごと**に実行（ページは約2週間で消える）。
 - 方針書: `tostnet_monitoring_plan.md`
+
+#### `jsf/{YYYYMMDD}.parquet` — JSF（日本証券金融）貸借・逆日歩
+- 1日1ファイル。列: `Date, Code, loan_balance(融資残), lending_balance(貸株残), net_balance(差引),
+  premium_rate(逆日歩 円/株/日), regulation(規制), source`。Code は5桁文字列。
+- **ロード/シグナル**:
+  ```python
+  from invest_system.data.sources.jsf import load_jsf, borrow_cost_bps_panel, squeeze_flags
+  df  = load_jsf(start="20260601")
+  bps = borrow_cost_bps_panel(df, load_wide("close"))   # 年率bps の借株コスト Date×Code（公表ラグ要）
+  ```
+- 取得: `examples/update_jsf.py --raw <手動DLディレクトリ>`（**手動DLのみ・スクレイピングなし**・冪等）。
+- 用途: ショート執行コストの実値化（`engine` の `short_borrow_bps` 既定115bpsを置換）＋逆日歩=踏み上げ信号。
+  詳細設計・限界（**limit-reversal は救済不可＝コストで死亡**）・engine統合は `docs/49`。代替＝J-Quants Premium 貸借。
 
 ---
 

@@ -137,6 +137,30 @@ value/quality/profitability(VQP)・PEAD/予想改訂・自社株買い＋増配(
 
 ---
 
+## 次フェーズ：フロンティア手法（最新研究サーベイ由来・2026-06-27）
+
+deep-research（学術＋実務・敵対的検証）で最新手法を調査 → docs/03 §6.20 の9連敗を踏まえ、**唯一未踏の軸＝テキスト**に着手。
+サーベイ未検証分（IPCA/autoencoder/SJM系）は朝6:10以降にワークフロー再開で確定予定。優先候補:
+
+- ❌(cheap版) **#1 開示テキストα（Lazy Prices）** — cheap-text 打ち止め・FAIL。事前登録＝`docs/45`。実装＝`disclosure_text.py`/`research_text_lazy_prices.py`/`research_text_idf.py`（テスト4緑）。
+  - 実現可能性 **検証済**（有報叙述10,593本抽出・`data/processed/disclosure_text.parquet` キャッシュ・MD&A・PIT・secCode連結）。
+  - **Stage1（TF-IDF char-n-gram）判定＝FAIL**（scope=`disclosure_text_change`,K=4。最良 text_sim_resid(q=0.2) SR−0.02/**DSR0.36**）。
+    - ◎**完全に独立**（vs value/mom/size ρ̄≈0）＝狙い通りの新軸。だが**SR≈0/負＝予測力なし**（独立だが無効＝②型）。
+    - ⚠**前年比類似度の中央値0.965＝定型文に飽和**＝char-n-gram では「物語の書き換え」を分離できない＝**まさに埋め込みが解く所**。
+    - ✗**H2 局在が逆**（小型 −0.31／大型 +0.86）＝事前登録の行動仮説（小型underreaction）は**棄却**。大型+0.86は事前ガードにより追わない（p-hack回避）。サブ期間も不安定・OOS負。
+  - **Stage1.5（節絞り＋trailing-IDF・脱飽和）判定＝FAIL**（同scope K=7。最良 text_idf(q=0.2) SR+0.11/**DSR0.44**）。
+    - ⚠**脱飽和がほぼ効かず**：中央値 0.965→**0.953**（事業リスク/対処課題の節も legally コピペで年次変化が極小）。
+    - ✗**H2 局在が再び逆**（小型 −0.29／大型 +0.35）＝行動仮説は**2版で一貫して棄却**。サブ期間 front-loaded・直近死・PBO0.94。
+    - ◎独立性は健在（ρ̄≈0）だが**edge無し**は不変。
+  - **結論（cheap-text 打ち止め）**: 全MD&A も 節絞り＋IDF も FAIL。**日本の有報叙述は年次変化が極小（中央値0.95+）＋小型underreaction機構が一貫不在**。
+    ＝surface表現の問題でなく**機構自体が弱い/不在**の公算。独立軸だが cheap には edge 無し、を厳密確認。
+  - **判断＝(C)へ：#2(SDF/regime)へpivot**（infra不要・既存データ・失敗型de-riskを正面修正）。
+    テキスト軸の残り＝(A)有報の埋め込み版＝高コスト低EV（飽和の根が"変化が小さい"＝表現では救えない見込み＋H2棄却）／
+    研究が最も支持する**news埋め込み版**(Chen-Kelly-Xiu)は別物だが TDnet/ニュース取得＋埋め込みの大投資要＝保留。
+- 🔬 **#2 潜在マクロ状態×no-arbitrage SDF** ← **次ここ**（regime-conditioningの"正解"＋GKXの切り口変更＝大型/SDF目的・既存データ・infra不要）。
+- ⬜ #3 ガバナンス開示イベント条件付けvalue（東証PBR改革リスト・要value残差化）。
+- ⬜ #4 GKX欠損値補完で再検証 / #5 過学習フロンティア・per-factor regime(SJM) / #6 取引先リードラグ(低容量・MCP)。
+
 ## ログ
 - 2026-06-27: バックログ作成。④アセットグロースから着手。
 - 2026-06-27: ④判定＝**FAIL**（DSR0.78）。直近2023+のみ正でvalue/PBR改革regimeと共変＝独立耐久エッジでない。次は①へ。
@@ -160,3 +184,10 @@ value/quality/profitability(VQP)・PEAD/予想改訂・自社株買い＋増配(
   マクロ・低リスク・フローを**9つの別角度**から厳密判定し、独立な耐久エッジゼロ。最良 DSR0.83(①)。失敗の型＝直近regime共変／
   OOS負／符号逆／momentum代理／de-risk／古データ減衰／既試redux。**「valueのみ控えめに耐久・platformが成果物」を最強度で確定**。
   次＝consolidate（コミット＋docs/03資産化）を推奨。
+- 2026-06-27: consolidate 完了（commit 7f38d85 研究9本 / 8c97fcf TODO+docs/03 §6.20）。
+- 2026-06-27: 最新研究サーベイ(deep-research・学術+実務・敵対的検証10件確定)→候補#1=**開示テキストα**を事前登録(`docs/45`)。
+  EDINET叙述テキストの実現可能性を実地検証(53,544本・MD&A実在・PIT)。次=Stage1(TF-IDF Lazy Prices)実装。
+- 2026-06-27: #1 Stage1（TF-IDF）判定＝**FAIL**（DSR0.36・SR≈0）。**独立(ρ≈0)だが無効**＋類似度0.965飽和＋H2逆。
+  ＝TF-IDFは内容仮説の公正検定にならず（飽和）。決定待ち：(A)Stage2埋め込み/(B)Stage1.5脱飽和/(C)#2へ。
+- 2026-06-27: #1 Stage1.5（節絞り＋trailing-IDF）＝**FAIL**（DSR0.44）。脱飽和ほぼ効かず（0.965→0.953）＝有報叙述の年次変化が極小。
+  H2再び逆（小型<大型）＝機構2版で一貫棄却。**cheap-text 打ち止め**。判断＝(C) #2(SDF/regime)へpivot。テキスト軸全体（cheap2版）＝独立だがedge無し、を厳密確認。

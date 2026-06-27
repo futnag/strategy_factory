@@ -24,6 +24,7 @@
 | TOB履歴（手動） | `manual/maonline/` | `parsed/*.csv` |
 | TDnet 適時開示（前向き） | `tdnet/` | `tdnet.load_tdnet()` |
 | ToSTNeT 超大口（前向き） | `jpx_tostnet/` | `jpx_tostnet.load_tostnet()` |
+| JSF 貸借・逆日歩（前向き） | `jsf/` | `jsf.load_jsf()` / `borrow_cost_bps_panel()` |
 
 **鉄則**: ① 生パス直読みよりローダ経由 ② PIT規律（提出日アンカー・`adj_*`は派生・`_displayed`は
 非安全） ③ 銘柄コードは英字混じり5桁文字列（`130A0`） ④ `_empty`列はデータ無しマーカー。

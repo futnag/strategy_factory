@@ -17,7 +17,8 @@
 value/quality/profitability(VQP)・PEAD/予想改訂・自社株買い＋増配(shareholder_return)・保守的予想
 バイアス(guidance_bias)・開示タイミング(disclosure_timing)・残差モメンタム・低ボラ・短期リバーサル・
 マイクロキャップ逆張り・共和分ペア・海外フロー→TOPIX(flow_topix_timing)・空売り残高XS(short_interest)・
-日経225オプションのボラ売り/VRP(vol_premium_n225)・指数入替・TOB裁定・アクティビスト・TSMOM・GKX ML。
+日経225オプションのボラ売り/VRP(vol_premium_n225)・指数入替・TOB裁定・アクティビスト・TSMOM・GKX ML・
+ストップ高リバーサル(limit_reversal・docs/48)。
 
 ---
 
@@ -209,3 +210,11 @@ deep-research（学術＋実務・敵対的検証）で最新手法を調査 →
 - 2026-06-27: #2 Stage2（深層GRU-SDF・torch CPU導入）＝**FAIL**（DSR0.12・GRU≡Linear＝小データで縮退）。深層は日本月次では無効。
   **#2総括**: H1（SDF目的>予測ML/合成）＝本物の収穫。だが認定未達＋OOS負＋H2未実証。**サーベイ上位2推奨（テキスト#1・SDF#2）を徹底検証し両方FAIL。**
   **強い推奨＝consolidate**（#2一式コミット/push＋docs/03に「frontier手法#1#2の知見」追記）。独立α探索は収穫逓減が決定的。価値＝platform＋documented負＋実運用 value/PEAD コア。残り#3/#4は低EV。
+- 2026-06-28: **データ監査で `UL`/`LL` 誤記を発見・修正**（docs/24：制限値幅"価格"→実体は **0/1 ストップ高/安フラグ**。
+  `close>=UL` 型の価格比較は破綻。code=`frictions.py` は正しく0/1扱い＝実害はドキュメントのみ）。§1/§3.2/§5-10 修正。
+- 2026-06-28: **ストップ高リバーサル**（新scope=`limit_reversal`・事前登録 docs/48）を factory化（`examples/research_limit_reversal.py`）
+  ＋判定＝**FAIL**（K=3・最良 lu_rev_h5_illiq **DSR0.26**・PBO0.94）。`UL`/`LL` を frictions の"コスト"から**シグナル**へ＝
+  742試行に無い**日次イベント軸**。**収穫＝gross強正(+1.08)でリバーサルは実在**、だが**取引コストで死亡**（損益分岐≈片道25bps・
+  値幅ロックblocked1,707・容量¥0.2百万）。借株は二次的。H3除外オーバーレイ（借株不要）も+2.0bps/月で無価値。
+  ＝新失敗型「**gross有・cost死・非スケール**」＝「紙上αがスプレッドで死ぬ」型（micro-capブリーフィング§3.2の実証）。
+  **10例目の独立α棄却**＝「valueのみ耐久」を再確認。再評価条件＝JSF逆日歩統合で空売り可否/実コスト実値化（低EV・打ち止め推奨）。

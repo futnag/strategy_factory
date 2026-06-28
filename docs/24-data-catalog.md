@@ -202,6 +202,11 @@ EDINET 系（イベント戦略 C1/C2・財務）は別ベース `data/edinet/`�
   ロード: `edinet_fundamentals.edinet_fundamentals_panel(rebal_dates, fields)`。
 - `edinetdb/financials/{Ecode}.parquet`: EDINET-DBコネクタ由来の社別財務（17列）。
   `edinetdb/quota.json` は当日API消費カウンタ。
+- `ownership_categories.parquet`: **所有者別株式分布（有報XBRLからオフライン抽出）**。
+  `[Code, fiscal_year, foreign_pct, individual_pct, source]`。`foreign_pct`＝外国法人等(個人以外)＋外国個人 の
+  単元比%、`individual_pct`＝個人その他。抽出＝`equities/edinet_ownership.py`（純関数）＋
+  `examples/build_ownership_panel.py`（**MCP/API非依存・CI互換・冪等**）。約4,387社×FY。
+  用途＝PEAD 高外国人除外オーバーレイ（`equities/ownership.py`・docs/50）。中間生成 `ownership_xbrl.parquet`。
 
 ### 3.5 `investers/`, `supplemental/`, `external_factors/` — クロスアセット・マクロ
 

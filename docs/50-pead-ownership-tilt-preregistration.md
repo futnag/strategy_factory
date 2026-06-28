@@ -184,3 +184,17 @@ T+1頑健**＝size代理でも非スケールでもない、**経済的に妥当
   恒久ONは (1) 所有パネルの定期/自動リフレッシュ（理想＝`data/edinet/docs` から所有者別状況をオフライン抽出する
   ローカル抽出器＝MCP/API非依存・CI互換）＋(2) フラグ ON、が整ってから。それまでは研究/フォワード用に OFF 既定。
 - **限界**: 未認定（DSR0.42）・foreign≈size。リスク管理（負ドリフト帯の除去）として妥当だが独立αではない。
+
+### 8.1 オフライン所有抽出器（本番フィード化・実装済み 2026-06-28）
+overlay の所有データを **MCP 非依存・CI互換**にするため、`data/edinet/docs` のキャッシュ済み有報XBRL(type=5)から
+所有者別状況を**オフライン・決定的に抽出**。`equities/edinet_ownership.py`（純関数 `parse_ownership_from_xbrl`）＋
+`examples/build_ownership_panel.py`（冪等差分ドライバ）＋`tests/test_edinet_ownership.py`（6件・合成XBRL）。
+- 所有者別は**専用 element_id**（カテゴリが要素名に内包）＝dimension解析不要で堅牢。単元比%を主・割合要素で交差検証。
+- **カバレッジ: 4,387社 / 27,699 社×年**（MCP の306を桁違いに上回る＝市場ほぼ全域・約10年）。quality ok 27,454。
+- **MCP 照合（正しさの裏取り）**: overlap 2,017行で **|Δforeign_pct| 中央0.00pt・平均0.07pt・≤1pt 99%**＝
+  オフライン抽出は MCP グラウンドトゥルースと一致。残り~1%は fiscal_year 表記差/複数株式クラス等のエッジ
+  （overlay は銘柄別 median 分類ゆえ影響軽微）。
+- **正準 `ownership_categories.parquet` を offline-source で再生成**（source 100% edinet_xbrl_offline）＝
+  overlay の本番フィードが MCP/claude.ai 非依存に。ナイトリー(GitHub Actions)へ冪等ジョブとして追加可能
+  （新規 doc のみ処理・ネット不要）。深度は EDINET doc ミラー（既存取得パイプライン）に律速。
+- これで docs/50 §8 のオーバーレイは**本番有効化の前提（自動/定期フィード）を満たす**。恒久ONはフォワード検証後に。

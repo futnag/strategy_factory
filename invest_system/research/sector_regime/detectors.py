@@ -287,7 +287,7 @@ def walk_forward_markov_switching(
                     trend="c",
                     switching_variance=True,
                 )
-                res = mod.fit(em_iter=50, search_reps=5, disp=False)
+                res = mod.fit(em_iter=30, search_reps=3, disp=False)
                 params = res.params
                 fp = np.asarray(res.filtered_marginal_probabilities)
                 if fp.shape[0] != len(win_y):
@@ -405,8 +405,9 @@ def all_method_specs() -> list[dict]:
         specs.append({"fn": walk_forward_cpd, "kwargs": {"algo": algo}})
     for k in GMM_N_COMPONENTS:
         specs.append({"fn": walk_forward_gmm, "kwargs": {"n_components": k}})
-    specs.append({"fn": walk_forward_markov_switching, "kwargs": {"n_regimes": 2}})
-    specs.append({"fn": walk_forward_markov_switching, "kwargs": {"n_regimes": 3}})
+    # Markov は EM コスト大のため再学習間隔を長めに（精度と速度のトレードオフ）
+    specs.append({"fn": walk_forward_markov_switching, "kwargs": {"n_regimes": 2, "refit_every": 16}})
+    specs.append({"fn": walk_forward_markov_switching, "kwargs": {"n_regimes": 3, "refit_every": 16}})
     specs.append({"fn": walk_forward_bocpd, "kwargs": {}})
     return specs
 

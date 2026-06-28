@@ -51,6 +51,7 @@ from invest_system.equities.fundamentals import load_fundamentals, point_in_time
 from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors,
 )
+from invest_system.equities.ownership import apply_high_foreign_exclusion  # noqa: E402
 from invest_system.production import (  # noqa: E402
     banded_weights, equity_orders, hedge_contracts, lot_orders,
 )
@@ -113,6 +114,11 @@ def _switch_weights_latest() -> tuple[pd.Timestamp, pd.Series, pd.Series, float]
     pead = zN(point_in_time(events.forecast_revision(fund), rebal, ["fcst_revision"],
                             date_col="DiscDate", lag_days=1)["fcst_revision"]
               .reindex(columns=superset))
+    # 任意・既定OFF: 高外国人除外オーバーレイ（docs/50・未認定タグ）。J_PEAD_FX_EXCLUDE=1 で有効化。
+    # OFF（既定）なら恒等＝本番ナイトリーは現行と完全一致。所有パネルが無ければ自動 no-op。
+    pead = apply_high_foreign_exclusion(
+        pead, enabled=get_env("J_PEAD_FX_EXCLUDE", "0") == "1",
+        cutoff_q=float(get_env("J_PEAD_FX_CUTOFF_Q", "0.67") or "0.67"))
     daily = load_daily_panel(field="AdjC")
     vol_m = vol_regime(daily).reindex(rebal, method="ffill")
     value_ls = CrossSectionalStrategy(value, 0.2, name="value")

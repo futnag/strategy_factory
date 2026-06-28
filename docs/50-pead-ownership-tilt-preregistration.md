@@ -164,3 +164,23 @@ T+1頑健**＝size代理でも非スケールでもない、**経済的に妥当
   ＝リスク管理として妥当）。未認定タグ付きで旗艦 PEAD 脚へ反映する価値はあるが、認定アップグレードではない。
 - **教訓**: 263名で見えた「foreign>size・容量優位」は**データ未完成ゆえの標本効果**だった。ユニバース完成（step3）が
   過大主張を防いだ＝検証規律の実例。
+
+---
+
+## 8. 実装（高外国人除外オーバーレイ・**既定 OFF**）
+
+§7 の唯一の頑健核（高外国人＝一貫した負ドリフト）を、旗艦 PEAD スリーブの**任意フック**として実装。
+**未認定タグ付き・既定 OFF＝no-op**（本番ナイトリーは現行と完全一致）。フォワードテスト候補であって認定改良ではない。
+
+- **モジュール**: `invest_system/equities/ownership.py`（純関数）。
+  - `load_ownership()` → 銘柄別 median 所有（持続値）。`high_foreign_codes(own, cutoff_q)` → 高外国人集合。
+  - `apply_high_foreign_exclusion(signal, own=None, *, enabled=False, cutoff_q=0.67, mode="exclude", shrink=0.0)`
+    ＝PEADシグナル(Date×Code)から高外国人列を NaN（除外）or 減量。**所有不明は保持（graceful）**。
+- **フック（既定OFF）**: `examples/phase2_generate_orders.py`（**本番**）と `examples/research_value_pead_longtilt.py`
+  の PEAD シグナル構築直後に1行。フラグ `J_PEAD_FX_EXCLUDE`（既定 `0`＝OFF）、`J_PEAD_FX_CUTOFF_Q`（既定 0.67）。
+  **OFF のとき出力は現行とバイト一致**＝本番無影響。所有パネルが無ければ自動 no-op（新規必須依存を作らない）。
+- **テスト**: `tests/test_ownership_overlay.py`（OFFで恒等／ON除外／減量／所有欠損で no-op／unknown保持／cutoff）。
+- **データ依存と本番有効化パス**: 所有は年1回・粘着的ゆえ、本番は**キャッシュ parquet を読むだけ**（毎晩取得不要）。
+  恒久ONは (1) 所有パネルの定期/自動リフレッシュ（理想＝`data/edinet/docs` から所有者別状況をオフライン抽出する
+  ローカル抽出器＝MCP/API非依存・CI互換）＋(2) フラグ ON、が整ってから。それまでは研究/フォワード用に OFF 既定。
+- **限界**: 未認定（DSR0.42）・foreign≈size。リスク管理（負ドリフト帯の除去）として妥当だが独立αではない。

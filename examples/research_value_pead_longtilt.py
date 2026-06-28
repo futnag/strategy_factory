@@ -28,6 +28,7 @@ from invest_system.equities.fundamentals import load_fundamentals, point_in_time
 from invest_system.equities.factors import (  # noqa: E402
     cross_sectional_zscore, sector_neutralize, value_quality_size_factors,
 )
+from invest_system.equities.ownership import apply_high_foreign_exclusion  # noqa: E402
 from invest_system.equities.stability import pre_post_sharpe  # noqa: E402
 from invest_system.research import (  # noqa: E402
     AsOfView, CompositeStrategy, CrossSectionalStrategy, judge_grid, write_html,
@@ -70,6 +71,10 @@ def main() -> int:
     pead = zN(point_in_time(events.forecast_revision(fund), rebal, ["fcst_revision"],
                             date_col="DiscDate", lag_days=1)["fcst_revision"]
               .reindex(columns=superset))
+    # 任意・既定OFF: 高外国人除外オーバーレイ（docs/50・未認定タグ）。J_PEAD_FX_EXCLUDE=1 で有効化。
+    pead = apply_high_foreign_exclusion(
+        pead, enabled=get_env("J_PEAD_FX_EXCLUDE", "0") == "1",
+        cutoff_q=float(get_env("J_PEAD_FX_CUTOFF_Q", "0.67") or "0.67"))
 
     value_ls = CrossSectionalStrategy(value, 0.2, name="value")
     pead_lt = CrossSectionalStrategy(pead, 0.2, name="pead_longtilt", long_only=True)

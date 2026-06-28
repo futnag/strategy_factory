@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -410,6 +411,12 @@ def all_method_specs() -> list[dict]:
     return specs
 
 
+def _filter_kwargs(fn: Callable, kwargs: dict) -> dict:
+    """検知器関数が受け付ける引数のみに絞る（パイプライン共通 kwargs の誤渡し防止）。"""
+    allowed = set(inspect.signature(fn).parameters)
+    return {k: v for k, v in kwargs.items() if k in allowed}
+
+
 def run_detector(
     fn: Callable,
     features: pd.DataFrame,
@@ -418,5 +425,5 @@ def run_detector(
     config_kwargs: Optional[dict] = None,
 ) -> RegimeOutput:
     """単一検知器を実行。"""
-    kw = config_kwargs or {}
+    kw = _filter_kwargs(fn, config_kwargs or {})
     return fn(features, sector=sector, **kw)

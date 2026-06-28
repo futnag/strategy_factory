@@ -14,6 +14,7 @@ from invest_system.research.sector_regime.detectors import (
     walk_forward_hmm,
     walk_forward_bocpd,
     all_method_specs,
+    run_detector,
 )
 from invest_system.research.sector_regime.evaluation import evaluate_method, composite_score
 from invest_system.research.sector_regime.config import PipelineConfig
@@ -78,7 +79,25 @@ def test_evaluation_scores(synthetic_daily):
 
 def test_all_method_specs_count():
     specs = all_method_specs()
-    assert len(specs) >= 10  # HMM×3 + CPD×3 + GMM×3 + Markov×2 + BOCPD
+    assert len(specs) == 12  # HMM×3 + CPD×3 + GMM×3 + Markov×2 + BOCPD
+
+
+def test_run_detector_all_specs(synthetic_daily):
+    """パイプラインと同じ kwargs 渡しで全12手法が動作すること。"""
+    weekly = build_weekly_features(synthetic_daily)
+    feat = feature_matrix(weekly, "3300")
+    cfg = PipelineConfig(warmup_weeks=52, refit_every=4)
+    base_kw = {
+        "warmup": cfg.warmup_weeks,
+        "refit_every": cfg.refit_every,
+        "window": cfg.rolling_window,
+        "random_state": cfg.random_state,
+    }
+    for spec in all_method_specs():
+        kw = {**base_kw, **spec.get("kwargs", {})}
+        out = run_detector(spec["fn"], feat, sector="3300", config_kwargs=kw)
+        valid = out.regime.dropna()
+        assert len(valid) > 20, f"{out.method} produced insufficient output"
 
 
 def test_pipeline_synthetic_runs():

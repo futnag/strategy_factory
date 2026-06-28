@@ -3,7 +3,8 @@
 専用 DataUpdater（base=data/edinet・別キー EDINET_API_KEY）で EDINET_DATASETS を回す。
 J-Quants の夜間更新（base=data/jquants）とは分離し互いを乱さない。空（書類なしの日）も
 マーカー保存されるため再実行は冪等・中断しても再開できる。Phase 2 夜間ジョブ（ops repo）
-にはこのスクリプト相当を追加する。
+にはこのスクリプト相当を追加する。**末尾で所有者別パネル（build_ownership_panel.py）も
+オフライン再生成**する（冪等・ネット不要・`J_OWNERSHIP_BUILD=0` で無効化。docs/50 §8.1）。
 
 縦覧期間の都合上、古い TOB/大量保有は API 上 null 化されるため初回ミラーの遡及は ~5 年が
 実効上限（有報は ~10 年）。初回は --plan で件数を見てから流すとよい。
@@ -16,6 +17,7 @@ usage:
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -23,6 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from invest_system.config import get_env                     # noqa: E402
 from invest_system.data.catalog import EDINET_DATASETS       # noqa: E402
 from invest_system.data.sources import edinet as ed          # noqa: E402
 from invest_system.data.updater import DataUpdater           # noqa: E402
@@ -57,6 +60,16 @@ def main() -> int:
     print(f"=== EDINET 差分更新: {args.start} 〜 {until} ===")
     rep = up.update(until=until, verbose=True)
     print(rep)
+
+    # 夜間: EDINET docs 更新後に所有者別パネルをオフライン再生成（冪等・既定ON・失敗は無害化）。
+    if get_env("J_OWNERSHIP_BUILD", "1") == "1":
+        print("\n=== 所有者別パネル オフライン再生成（build_ownership_panel.py）===")
+        try:
+            subprocess.run([sys.executable,
+                            str(Path(__file__).with_name("build_ownership_panel.py"))],
+                           check=False, timeout=2400)
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] ownership panel build skipped: {e}")
     return 0
 
 

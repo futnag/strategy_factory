@@ -195,6 +195,9 @@ overlay の所有データを **MCP 非依存・CI互換**にするため、`dat
   オフライン抽出は MCP グラウンドトゥルースと一致。残り~1%は fiscal_year 表記差/複数株式クラス等のエッジ
   （overlay は銘柄別 median 分類ゆえ影響軽微）。
 - **正準 `ownership_categories.parquet` を offline-source で再生成**（source 100% edinet_xbrl_offline）＝
-  overlay の本番フィードが MCP/claude.ai 非依存に。ナイトリー(GitHub Actions)へ冪等ジョブとして追加可能
-  （新規 doc のみ処理・ネット不要）。深度は EDINET doc ミラー（既存取得パイプライン）に律速。
+  overlay の本番フィードが MCP/claude.ai 非依存に。深度は EDINET doc ミラー（既存取得パイプライン）に律速。
+- **ナイトリー連結（#2 実装済み）**: `examples/edinet_update.py` 末尾に `build_ownership_panel.py` を連結
+  （`J_OWNERSHIP_BUILD`・既定ON・冪等・ネット不要・失敗は無害化）。ops repo の夜間が `edinet_update.py` 相当を
+  呼ぶため、**EDINET docs 更新→所有パネル再生成が自動連鎖**。ops が独自コピーを使う場合は、夜間チェーンの
+  EDINET 更新ステップ直後に `python examples/build_ownership_panel.py` を1行追加すればよい。
 - これで docs/50 §8 のオーバーレイは**本番有効化の前提（自動/定期フィード）を満たす**。恒久ONはフォワード検証後に。

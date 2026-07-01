@@ -27,3 +27,12 @@ venv/
 # OS
 Thumbs.db
 .DS_Store
+
+# build/session artifacts
+*.egg-info/
+/output/
+/terminals/
+/data.zip
+
+# local tool configs (Pencil MCP tool schemas)
+/mcps/

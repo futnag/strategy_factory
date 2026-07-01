@@ -18,7 +18,11 @@ from invest_system.research.sector_regime.detectors import (
 )
 from invest_system.research.sector_regime.evaluation import evaluate_method, composite_score
 from invest_system.research.sector_regime.config import PipelineConfig
-from invest_system.research.sector_regime.pipeline import run_pipeline
+from invest_system.research.sector_regime.pipeline import (
+    _run_sector_methods,
+    _spec_label,
+    run_pipeline,
+)
 
 
 @pytest.fixture
@@ -116,3 +120,53 @@ def test_pipeline_synthetic_runs():
 
 def test_list_sectors(synthetic_daily):
     assert set(list_sectors(synthetic_daily)) == {"3300", "5250"}
+
+
+def test_spec_label():
+    specs = all_method_specs()
+    labels = {_spec_label(s) for s in specs}
+    assert "hmm_2" in labels
+    assert "cpd_pelt" in labels
+    assert "gmm_3" in labels
+    assert "markov_2" in labels
+    assert "bocpd" in labels
+
+
+def test_run_sector_methods_logs_failure(synthetic_daily, caplog):
+    weekly = build_weekly_features(synthetic_daily)
+    cfg = PipelineConfig(warmup_weeks=52, min_weeks=50)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("detector exploded")
+
+    bad_spec = {"fn": _boom, "kwargs": {}}
+    with caplog.at_level("WARNING", logger="invest_system.research.sector_regime.pipeline"):
+        result = _run_sector_methods(
+            "3300",
+            weekly,
+            cfg,
+            [bad_spec],
+            show_method_progress=True,
+            global_task_offset=0,
+            global_task_total=1,
+        )
+
+    assert result.results == []
+    assert len(result.failures) == 1
+    assert "detector exploded" in result.failures[0][1]
+    assert any(r.levelname == "WARNING" for r in caplog.records)
+    assert any("sector=3300" in r.message for r in caplog.records)
+
+
+def test_pipeline_reports_method_counts():
+    config = PipelineConfig(warmup_weeks=52, min_weeks=100)
+    result = run_pipeline(
+        "synthetic",
+        sectors=["3300", "5250"],
+        config=config,
+        output_dir=None,
+        show_progress=False,
+    )
+    assert result.method_successes > 0
+    assert result.method_failures == 0
+    assert "手法実行" in result.summary_text          # 失敗数が成果物（summary.md）に永続化される

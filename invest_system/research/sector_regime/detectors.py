@@ -50,10 +50,27 @@ def _standardize_fit(X: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]
 
 
 def _high_vol_state_index(states: np.ndarray, vol_proxy: np.ndarray) -> int:
-    """高ボラ状態のインデックスを推定（経済的解釈の統一）。"""
+    """高ボラ状態のインデックスを推定（経済的解釈の統一）。
+
+    後方互換のため**不変**（既存のボラ整列パスの既定）。汎用整列は `_align_states` を使う。
+    """
     uniq = np.unique(states)
     means = {s: vol_proxy[states == s].mean() for s in uniq if (states == s).any()}
     return int(max(means, key=means.get)) if means else 0
+
+
+def _align_states(states: np.ndarray, key: np.ndarray, *, ascending: bool = True) -> list[int]:
+    """状態を key（状態別平均）で並べ替えた順序ラベルを返す（ラベルの意味を固定）。
+
+    `_high_vol_state_index`（後方互換のため不変）と独立の汎用ヘルパ。日足=ボラ/Amihud 昇順
+    （calm→stressed）、週足=モメンタム符号昇順（bear→bull）で状態の意味を固定する（アーキ3）。
+    非タイの最上位は `_high_vol_state_index(...)` と一致する。
+    """
+    states = np.asarray(states)
+    key = np.asarray(key, dtype=float)
+    uniq = [int(s) for s in np.unique(states) if (states == s).any()]
+    means = {s: float(key[states == s].mean()) for s in uniq}
+    return sorted(means, key=lambda s: (means[s], s), reverse=not ascending)
 
 
 # ------------------------------------------------------------------ HMM

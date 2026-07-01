@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -24,6 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from invest_system.research.sector_regime import PipelineConfig, run_pipeline
 from invest_system.research.sector_regime.data_loader import set_data_root
+from invest_system.research.sector_regime.pipeline import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -41,11 +45,14 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=104, help="ウォームアップ週数")
     parser.add_argument("--min-weeks", type=int, default=260, help="最低週数")
     parser.add_argument("--jobs", type=int, default=1, help="並列ワーカー数（1=逐次）")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG ログを有効化")
     args = parser.parse_args()
+
+    configure_logging(verbose=args.verbose)
 
     if args.data_root:
         set_data_root(args.data_root)
-        print(f"データルート: {args.data_root}")
+        logger.info("データルート: %s", args.data_root)
 
     sectors = [s.strip() for s in args.sectors.split(",")] if args.sectors else None
     config = PipelineConfig(
@@ -53,9 +60,9 @@ def main() -> None:
         min_weeks=args.min_weeks,
     )
 
-    print("=" * 60)
-    print("セクター週足レジーム検知 — 手法比較パイプライン")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("セクター週足レジーム検知 — 手法比較パイプライン")
+    logger.info("=" * 60)
 
     result = run_pipeline(
         data_source=args.source,
@@ -81,6 +88,14 @@ def main() -> None:
 
     print(f"\n結果保存先: {args.output}/")
     print(result.sector_insight)
+    if result.method_failures > 0:
+        logger.warning(
+            "完了（警告あり）: 手法 %d成功 / %d失敗",
+            result.method_successes,
+            result.method_failures,
+        )
+    else:
+        logger.info("完了: 手法 %d成功", result.method_successes)
 
 
 if __name__ == "__main__":

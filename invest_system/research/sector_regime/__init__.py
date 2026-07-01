@@ -7,7 +7,7 @@ from .data_loader import (
     list_sectors,
     set_data_root,
 )
-from .pipeline import PipelineResult, run_pipeline
+from .pipeline import PipelineResult, configure_logging, run_pipeline
 from .weekly import build_weekly_features
 
 __all__ = [
@@ -20,5 +20,6 @@ __all__ = [
     "list_sectors",
     "load_sector_daily",
     "set_data_root",
+    "configure_logging",
     "run_pipeline",
 ]

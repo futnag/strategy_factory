@@ -16,7 +16,8 @@ import pandas as pd
 _COMMON_MARKETS = {"0111", "0112", "0113"}
 
 # Phase 4 本番ユニバースの絶対しきい値プリセット（PIT・先読み無し）。
-# production＝docs/19（¥10B 床）、smallcap_30b＝docs/21 Phase 4b（¥30B 床・唯一の変更点）。
+# production＝docs/19（時価総額 ¥100億=1e10 床）、
+# smallcap_30b＝docs/21 Phase 4b（¥30億=3e9 床・唯一の変更点。"30b"は 30億の意）。
 LIQUID_UNIVERSE_PRESETS: dict[str, dict[str, float]] = {
     "production": {"min_price": 100.0, "min_mcap": 1e10, "min_adv": 5e7},
     "smallcap_30b": {"min_price": 100.0, "min_mcap": 3e9, "min_adv": 5e7},

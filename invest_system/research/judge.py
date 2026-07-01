@@ -177,6 +177,12 @@ def judge_grid(strategies, view, *, scope: str, hypothesis: str,
       貸株コスト）をエンジンへ渡す（equities/frictions.py 参照）。
     extra_trials: 探索しただけで建玉に至らない候補（CADF 等で事前棄却したペア）の数。
       K に算入し DSR をデフレートする（ペア探索の SBuMT 制御・DP13・KB §11.7）。
+
+    保守性の注意（2点・意図的な設計だが誤用しない）:
+    - K は scope の**生カウント**（相関の高いグリッド点・scan 試行を含む）で、有効独立
+      試行数へのクラスタリング補正は行わない＝E[max SR] を過大評価しうる保守側の設計。
+    - 標本が短く minTRL ≫ n となる設定（単一銘柄×数年など）では DSR≥threshold が構造的に
+      到達不能。その場合 DSR を判定基準にせず記述統計として扱う（daily_regime loop A 参照）。
     """
     staged = []   # (strategy, result, returns, uuid)
     for s in strategies:

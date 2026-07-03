@@ -418,7 +418,7 @@ survey 参照／登録日。
   （優待クロスは日本で最も retail-crowded な取引の一つ）**。I-31 の優待 DB 調達で同時解禁される
   （データタスクの相乗効果として記録）。
 
-### I-43 ⬆ 経営者予想の「予想外部分」の過大評価（12ヶ月 unwind）
+### I-43 🧪 経営者予想の「予想外部分」の過大評価（12ヶ月 unwind）
 - **出典**: Kitagawa & Shuto (2024) "Unexpected management forecasts and future stock returns"
   JBFA 51(9-10) 2452-2489（RePEc で abstract 確認済＝unexpected 高→**その後12ヶ月の異常リターン負**・
   expected 部分は無関係・市場は credible 部分を適正評価し less credible 部分を過大評価）。
@@ -431,7 +431,7 @@ survey 参照／登録日。
 - **スクリーン**: F7（unexpected 楽観⇔ディストレス/低品質と相関＝quality 残差化必須）・
   F2（論文標本の年代）。既試 `guidance_bias`（集計タイミング・❌）とは XS 特性軸で別・
   `forecast_revision`（改訂Δ）とも水準特性で別。
-- **スコア**: 機構4・新規性4・データ適合5・実装コスト3。→ **unexpected_forecast として昇格**。
+- **スコア**: 機構4・新規性4・データ適合5・実装コスト3。→ unexpected_forecast で検証済み（❌ FAIL・序列は論文どおり再現するが効果微小＝F6公表後減衰・docs/59 §5）。
 
 ### I-44 💡 予想バイアスの企業レベル持続性（常習ビーター vs 常習ミサー）
 - **出典**: 円谷 (2009)「会社業績予想における経営者バイアスの影響」（一橋・PDF fetch 確認済＝

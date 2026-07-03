@@ -59,6 +59,17 @@
 
 ## §4 サイクル記録（append-only・新しいものを下に）
 
+### 2026-07-03 activist_filing_drift — ❌ FAIL（F2/F6＋F8亜型・DSR0.08・K=4）
+- 仮説: 大量保有報告の filer 異質性ドリフト（scout I-33・日本主標本で方向固定・docs/57）。
+- 結果: **異質性は再現**（名簿filer +386bps/5日 vs 全filer −73bps/40日・統制超えΔSR+0.95）が、
+  織り込みは**ジャンプ型**（5日で完結→以後フラット）＝T+1 後の残余が細くSRに変換されず。
+  年次 2022+0.97→2025−1.23 の標本内急減衰（アクティビズム・ブームの crowding）。
+- 機構1行: **開示イベントの高速織り込み（2024+）**＝イベント平均効果の実在と取引可能性は別物
+  → H-17 追加（T+1 以降に残る構造的理由の事前説明を要求）。
+- 収穫: filer 名簿・重要提案フラグは除外/リスク管理スクリーン部品として有効。
+  edinetCode→secCode 対応表（`data/processed/edinet_code_map.parquet`）は汎用再利用可。
+- 成果物: docs/57 §5・examples/research_activist_filing.py・data/reports/activist_filing_drift.html。
+
 ### 2026-07-03 delta_liquidity — ❌ FAIL（F3 符号逆＋F4 亜型・DSR0.00・K=4）
 - 仮説: 流動性「変化」の翌月ドリフト（scout I-29・日本主標本 PBFJ2023 で成分別方向を事前固定・docs/56）。
 - 結果: 両仮説とも分位単調性が逆（Q5−Q1: ST−21bps/LT−30bps）。**設計欠陥を事後発見**＝

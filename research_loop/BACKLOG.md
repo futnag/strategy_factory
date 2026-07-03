@@ -93,8 +93,12 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
   日本主標本（H-15 適合）。
 - **出典**: Iwanaga & Hirose, PBFJ 81 (2023) 102115 ＋ PBFJ 75 (2022)＝[IDEAS I-29]。
 
-### 🔬 activist_filing_drift — 大量保有報告イベントの filer 異質性ドリフト
-- **状態**: 🔬 検証中（2026-07-03 事前登録＝docs/57・サイクル 2026-07-03-activist-filing-drift・K=4）
+### ❌ activist_filing_drift — 大量保有報告イベントの filer 異質性ドリフト（判定済み）
+- **状態**: ❌ FAIL（2026-07-03 判定。scope=`activist_filing_drift`・K=4・docs/57 §5・DSR0.08）。
+- **結果**: filer 異質性は日本論文どおり再現（名簿filer +386bps/5日 vs 全filer 無）だが
+  **ジャンプ型織り込み**＝T+1 後の残余が細く、かつ 2024+ で標本内急減衰（crowding）。
+- **収穫**: H-17（開示イベントの高速織り込み）。filer名簿/重要提案フラグはスクリーン部品として有効。
+  edinetCode→secCode 対応表は汎用資産。再評価条件＝日中執行が可能になった場合のみ。
 - **仮説**: 大量保有報告（初回・変更）後のドリフトは filer タイプと目的で異質＝
   ファンド系 filer（ヘッジファンド/投資ファンド）・重要提案行為目的の報告後に正のドリフト、
   PE・事業会社等では弱い/無し（方向は Gillan et al. 2023 で事前固定・詳細は原文確認）。

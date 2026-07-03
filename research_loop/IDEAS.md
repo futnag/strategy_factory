@@ -282,7 +282,7 @@ survey 参照／登録日。
   浅いモデル（ロジスティック/浅XGB）に固定（H-11）。
 - **スコア**: 機構3・新規性3・データ適合5・実装コスト4。
 
-### I-29 ⬆ ΔLiquidity アンダーリアクション（流動性変化の翌月ドリフト・日本主標本）
+### I-29 🧪 ΔLiquidity アンダーリアクション（流動性変化の翌月ドリフト・日本主標本）
 - **出典**: Iwanaga & Hirose (2023) "Liquidity changes and decomposition in the Japanese equity
   market" PBFJ 81, 102115（abstract 確認済）＋同 (2022) PBFJ 75（流動性ショック）。**日本主標本**。
 - **機構**: 流動性の**変化**への過小反応＝再価格付けが翌月に持ち越される。
@@ -291,7 +291,7 @@ survey 参照／登録日。
 - **JPデータ**: features の amihud_illiq・turnover・spread 系＝完全ローカル・月次・実装最軽量。
 - **スクリーン**: F7 リスク＝静的流動性水準・短期リバーサル・サイズとの直交化が必須
   （残差化＋副次基準）。H-15 適合（日本直接証拠）。
-- **スコア**: 機構4・新規性3・データ適合5・実装コスト5。→ **delta_liquidity として昇格**。
+- **スコア**: 機構4・新規性3・データ適合5・実装コスト5。→ delta_liquidity で検証済み（❌ FAIL・F3符号逆＋LT脚はmomentum代理 ρ̄−0.46・docs/56 §5）。
 
 ### I-30 🗑 BoJ 保有×インエラスティック需要のマルチプライヤ
 - **出典**: Ichiue (2025/26) "The Bank of Japan's Stock Holdings and Long-term Returns" SSRN 4802165

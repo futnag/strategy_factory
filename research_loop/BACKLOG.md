@@ -134,7 +134,9 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
 - **出典**: Hirose, Kato & Bremer (2009) PBFJ 17(1)（確認済）＋IRFA 45 (2016)＋JPX 制度規則
   ＝[IDEAS I-37]。
 
-### ⬜ unexpected_forecast — 経営者予想の「予想外部分」の過大評価（日本主標本・JBFA 2024）
+### 🔬 unexpected_forecast — 経営者予想の「予想外部分」の過大評価（日本主標本・JBFA 2024）
+- **状態**: 🔬 検証中（2026-07-03 事前登録＝docs/59・サイクル 2026-07-03-unexpected-forecast・K=4。
+  CARF F367 本文で期待モデル仕様を確認済み＝縮約版を明示的逸脱として固定）
 - **仮説**: 期初経営者予想のうちファンダメンタルズで説明できない unexpected 部分が**高い**銘柄は
   その後12ヶ月アンダーパフォームする（市場は less credible な裁量部分を過大評価し、期中実績で
   ゆっくり修正）。expected 部分には予測力なし。

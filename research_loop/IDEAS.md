@@ -116,7 +116,7 @@ survey 参照／登録日。
   設計論点に吸収。2024年の記録的自社株買い（¥16.8兆）という母数拡大は §6.17 再訪の材料にはなるが
   単独の新仮説ではない。
 
-### I-11 ⬆ ジャンプテールβのクロスセクション（N225 OTMプット→個別株テール感応度）
+### I-11 🧪 ジャンプテールβのクロスセクション（N225 OTMプット→個別株テール感応度）
 - **出典**: Alexiou & Rompolis (2024) "Jump Tail Risk Exposure and the Cross-Section of Stock Returns"
   J. Empirical Finance 79（research.ed.ac.uk で abstract 確認済: high-low **−9.95%/年**・下側テール主導）。
 - **機構**: 指数オプションの deep-OTM プットからモデルフリーの左テール尺度→個別株リターンの
@@ -124,7 +124,7 @@ survey 参照／登録日。
 - **JPデータ**: `options_225`（2016-06〜・日次2,620ファイル・IV/Strike/UnderPx）＋全銘柄日次＝完結。
 - **スクリーン**: 既試 vol_premium_n225（VRP売り）・option_regime_topix（ゲート）とは**別物**（XS 利用は初）。
   低ボラ/BAB 代理リスク（low_risk_anomaly と要直交化・H-1 類推）。OTM 板の疎さ→EVT 推定の安定性が
-  実装リスク。→ **jump_tail_beta_xs として昇格**。
+  実装リスク。→ jump_tail_beta_xs で検証済み（❌ FAIL・**F3符号逆**＝全セル負だが急落月全勝・docs/55 §5）。
 - **スコア**: 機構4・新規性5・データ適合4・実装コスト2。
 
 ### I-12 ⬆ スパースジャンプモデルによるファクター配分（少状態レジーム）

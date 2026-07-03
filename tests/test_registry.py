@@ -109,6 +109,28 @@ def test_log_trial_persists_across_connections(tmp_path):
         assert r2.trial_count("s") == 2              # 新規変種は累積
 
 
+def test_recent_trials_newest_first_and_scope_filter():
+    reg = _reg()
+    reg.log_trial(scope="s1", strategy_id="a", params={"p": 1}, sharpe=0.1, **_KW)
+    reg.log_trial(scope="s1", strategy_id="b", params={"p": 2}, sharpe=0.2, **_KW)
+    reg.log_trial(scope="s2", strategy_id="c", params={"p": 3}, sharpe=0.3, **_KW)
+    tid = reg.preregister(scope="s2", hypothesis="hypothesis text here",
+                          economic_rationale="rationale text here")
+
+    rows = reg.recent_trials(limit=10)
+    assert len(rows) == 4
+    assert rows[0]["uuid"] == tid                    # 新しい順（未完了も含む）
+    assert rows[0]["status"] == "preregistered"
+    assert [r["strategy_id"] for r in rows[1:]] == ["c", "b", "a"]
+    assert set(rows[0]) >= {"uuid", "scope", "strategy_id", "status", "sharpe",
+                            "n_obs", "preregistered_at", "completed_at", "hypothesis"}
+
+    s1 = reg.recent_trials(limit=10, scope="s1")
+    assert [r["strategy_id"] for r in s1] == ["b", "a"]  # scope フィルタ＋新しい順
+    assert reg.recent_trials(limit=1)[0]["uuid"] == tid  # limit が効く
+    assert reg.recent_trials(scope="nope") == []
+
+
 def test_log_trial_requires_a_priori_theory():
     reg = _reg()
     with pytest.raises(ValueError):

@@ -217,6 +217,25 @@ class TrialRegistry:
         return [(r["scope"], int(r["k"]), self.sharpe_variance(r["scope"]))
                 for r in rows]
 
+    def recent_trials(self, limit: int = 20, scope: Optional[str] = None) -> list:
+        """直近の試行を新しい順に返す（読み取り専用・俯瞰用）。
+
+        research_loop のブートストラップで「最近どの scope で何を試したか」を
+        生SQLなしに把握するための一覧API。書き込み経路を持たない。
+        返り値: dict のリスト（uuid, scope, strategy_id, status, sharpe, n_obs,
+        preregistered_at, completed_at, hypothesis=先頭80字）。
+        """
+        sql = ("SELECT uuid, scope, strategy_id, status, sharpe, n_obs, "
+               "preregistered_at, completed_at, substr(hypothesis, 1, 80) AS hypothesis "
+               "FROM trials")
+        args: tuple = ()
+        if scope is not None:
+            sql += " WHERE scope=?"
+            args = (scope,)
+        sql += " ORDER BY trial_id DESC LIMIT ?"
+        rows = self._conn.execute(sql, args + (int(limit),)).fetchall()
+        return [dict(r) for r in rows]
+
     def deflated_sharpe(self, trial_uuid: str) -> float:
         """指定試行の DSR を、その scope の K と Sharpe 分散から自動算出。"""
         row = self._conn.execute(

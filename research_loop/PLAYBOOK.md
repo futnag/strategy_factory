@@ -61,8 +61,12 @@ $env:PYTHONUTF8="1"; .\.venv\Scripts\python.exe examples\loop_status.py
 
 ### Step 1 仮説の選択または生成
 - BACKLOG の最優先 ⬜ を1つ取る（🔬 に更新）。
-- ⬜ が無い/低EVなら、4領域（a:日本株XS / b:イベント駆動 / c:時系列・マルチアセット / d:クリプト）に
-  **散らして3〜5候補**を生成する。生成時は HEURISTICS の全項目を prior として適用。
+- ⬜ が無い/低EVなら、まず `IDEAS.md` の 💡candidate をスコア順に確認し、事前スクリーンを
+  再確認のうえ昇格する（BACKLOG に ⬜ 追記・IDEAS 側を ⬆ に更新・出典を引き継ぐ）。
+- IDEAS も薄い場合は `/research-scout` の実行をユーザーに提案し、それでも進める指示なら
+  4領域（a:日本株XS / b:イベント駆動 / c:時系列・マルチアセット / d:クリプト）に
+  **散らして3〜5候補**を自前生成する。生成時は HEURISTICS の全項目を prior として適用。
+- 検証した仮説が IDEAS 由来なら、判定後（Step 7）に該当 I-n を 🧪tested（scope リンク付き）に更新。
 - **dedupe**: registry の scope 一覧（loop_status 出力）・BACKLOG §2 除外リスト・§3 Stage-0 棄却台帳・
   LESSONS と突合。既試の再発明は禁止（「同じ経済機構＋同じデータ軸」なら別名でも既試とみなす）。
 - 新候補は TODO.md の項目構造（**仮説／経済的根拠／データ／新規性／独立性／注意**）で BACKLOG §1 に追記。
@@ -141,3 +145,4 @@ $env:PYTHONUTF8="1"; .\.venv\Scripts\python.exe examples\research_<scope>.py
 | 日付 | cycle_id | 変更 | 根拠 | 証拠 |
 |---|---|---|---|---|
 | 2026-07-03 | (初版) | §B v1.0 制定 | docs/03・docs/45-48・TODO.md の運用実績を手順化 | — |
+| 2026-07-03 | (基盤・人間承認) | Step 1 に IDEAS 昇格経路と /research-scout 提案を追加 | scout→cycle 供給ライン新設（承認済みプラン） | research_loop/IDEAS.md |

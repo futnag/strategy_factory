@@ -6,10 +6,12 @@ Claude Code の自律セッションが、検証ファクトリの規律（PIT�
 ## 起動
 
 ```
-/research-cycle
+/research-cycle            # 検証サイクル: BACKLOG の最優先 ⬜ を1つ裁く
+/research-scout [テーマ]    # 供給側: 文献調査→IDEAS 備蓄→上位を BACKLOG へ昇格
 ```
 
-1回の起動＝1サイクル（1仮説）。セッションは `PLAYBOOK.md` の手順に従い、
+scout は BACKLOG ⬜ が2件を切ったら実行推奨（月1目安）。
+1回の /research-cycle 起動＝1サイクル（1仮説）。セッションは `PLAYBOOK.md` の手順に従い、
 終了時にサイクルサマリを出力する。**PASS しても自動採用はしない**（`proposals/` に提案を書いて
 停止＝人間ゲート）。Phase 2 本番系・`docs/03`（知見の正本）には触れない。
 
@@ -21,6 +23,8 @@ Claude Code の自律セッションが、検証ファクトリの規律（PIT�
 | `HEURISTICS.md` | 仮説生成 prior＋Stage-0 キルチェック | H-n append-only・証拠引用必須 |
 | `LESSONS.md` | 失敗型タクソノミー＋蓄積知見 | append-only。人間が定期的に docs/03 へ編入 |
 | `BACKLOG.md` | 仮説キュー＋除外リスト＋Stage-0 棄却台帳 | 状態更新＋追記 |
+| `IDEAS.md` | 文献調査由来のアイデア台帳（/research-scout が備蓄・上位を BACKLOG へ昇格） | I-n append-only・状態タグのみ更新 |
+| `surveys/` | 調査レポート（検索クエリ・参照論文・near-miss の監査痕跡） | 1実行1ファイル |
 | `ledger.jsonl` | サイクル毎のファネル指標 | 1行/サイクル append-only |
 | `proposals/` | PASS 時の採用提案（人間レビュー待ち） | サイクルからは書くのみ |
 

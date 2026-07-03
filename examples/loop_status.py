@@ -75,6 +75,29 @@ def show_backlog() -> None:
         print("未着手（⬜）なし → Step 1 で新規候補を生成する。")
 
 
+def show_ideas(top: int = 5) -> None:
+    _section("アイデア台帳（research_loop/IDEAS.md）")
+    path = LOOP / "IDEAS.md"
+    if not path.exists():
+        print("（IDEAS.md 不在）")
+        return
+    tags = {"💡": 0, "⬆": 0, "🗑": 0, "🧪": 0}
+    candidates: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^#{2,4}\s*I-\d+\s*(💡|⬆|🗑|🧪)\s*(.+)$", line.strip())
+        if not m:
+            continue
+        tags[m.group(1)] += 1
+        if m.group(1) == "💡":
+            candidates.append(m.group(2).strip())
+    print(f"💡candidate {tags['💡']}  ⬆promoted {tags['⬆']}  "
+          f"🗑rejected {tags['🗑']}  🧪tested {tags['🧪']}")
+    for t in candidates[:top]:
+        print(f"  💡 {t}")
+    if len(candidates) > top:
+        print(f"  …他 {len(candidates) - top} 件")
+
+
 def show_ledger(tail: int = 5) -> None:
     _section(f"サイクル台帳（research_loop/ledger.jsonl 末尾{tail}件）")
     path = LOOP / "ledger.jsonl"
@@ -143,6 +166,7 @@ def main(argv: list[str]) -> int:
     print("research_loop 状態サマリ  " + datetime.now().strftime("%Y-%m-%d %H:%M"))
     show_registry()
     show_backlog()
+    show_ideas()
     show_ledger()
     show_freshness(deep=deep)
     print("\n※ 次に読む: research_loop/{PLAYBOOK,HEURISTICS,LESSONS,BACKLOG}.md")

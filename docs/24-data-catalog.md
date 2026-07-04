@@ -63,6 +63,8 @@
 | **TDnet 適時開示一覧** | `tdnet/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `tdnet.load_tdnet()` / `filter_tagged()` | `sources/tdnet.py` | 日次・前向き蓄積 |
 | **JPX ToSTNeT 超大口** | `jpx_tostnet/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `jpx_tostnet.load_tostnet()` | `sources/jpx_tostnet.py` | 日次・前向き蓄積 |
 | **JSF 貸借・逆日歩** | `jsf/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `jsf.load_jsf()` / `borrow_cost_bps_panel()` | `sources/jsf.py` | 日次・前向き蓄積（手動DL） |
+| **TOPIX 段階的ウエイト低減** | `jpx_indices/topix_reduction_events.parquet` | parquet・イベント表（988行） | 直接 read | `examples/update_jpx_topix_lists.py` | 公表毎（第2段階は2026-10〜） |
+| TOPIX 構成銘柄ウェイト（現時点） | `jpx_indices/topixweight_latest.parquet` | parquet・スナップショット | 直接 read | 〃 | 随時 refresh |
 
 ---
 
@@ -275,6 +277,21 @@ fingerprint, preregistered_at, completed_at`。**多重検定補正（DSR）と�
 - **ロード**: `from invest_system.data.sources.jpx_tostnet import load_tostnet, daily_summary`
 - 取得: `examples/update_tostnet.py`。**2週間以内ごと**に実行（ページは約2週間で消える）。
 - 方針書: `tostnet_monitoring_plan.md`
+
+#### `jpx_indices/topix_reduction_events.parquet` — TOPIX 段階的ウエイト低減イベント
+- JPX 公表 PDF から構築（一次ソース URL は `examples/update_jpx_topix_lists.py` に凍結）。
+  列: `pub_date`（**PIT アンカー＝公表日**）, `action`, `code`（5桁正規化）, `code4`, `source`。
+- action: `reduction_start`（2022-10-07・初期493）/ `reeval_escaped`（2023-10-06・復帰43）/
+  `continue_to_removal`（2023-10-06・低減継続→2025-01 に TOPIX 除外・439）/
+  `reeval_attrition`（再評価前に上場廃止等で消滅・13・**derived**）。
+- 低減の**実施日**は規則ベース＝四半期最終営業日×10段階（2022-10 末〜2025-01 末）＝
+  公表時点で全スケジュール既知（スケジュール既知の強制フロー・research_loop IDEAS I-32）。
+- ⚠ 再評価リストに初期コホート外の2コード（5535・7374）＝期間中の証券コード変更/承継の
+  可能性。一次ソースのまま記録（突合時は名寄せに注意）。
+- 検証済み: 各セクション行番号 1..N 連番・493/43/439 は公表構成どおり・コホートの100%が
+  wide パネルに存在。第2段階（次世代TOPIX・2026-10 開始）のリストは公表後に同スクリプトへ
+  URL を凍結追加。併せて `topixweight_latest.parquet`（構成銘柄ウェイト・脚注行除去済み・
+  ウェイト合計=1.000 検証）も同スクリプトが生成。
 
 #### `jsf/{YYYYMMDD}.parquet` — JSF（日本証券金融）貸借・逆日歩
 - 1日1ファイル。列: `Date, Code, loan_balance(融資残), lending_balance(貸株残), net_balance(差引),

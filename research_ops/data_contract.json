@@ -1,10 +1,40 @@
 {
  "jquants/daily": {
   "columns": [
-   "_empty"
+   "AdjC",
+   "AdjFactor",
+   "AdjH",
+   "AdjL",
+   "AdjO",
+   "AdjVo",
+   "C",
+   "Code",
+   "Date",
+   "H",
+   "L",
+   "LL",
+   "O",
+   "UL",
+   "Va",
+   "Vo"
   ],
   "dtypes": {
-   "_empty": "bool"
+   "Date": "datetime64[us]",
+   "Code": "str",
+   "O": "float64",
+   "H": "float64",
+   "L": "float64",
+   "C": "float64",
+   "UL": "int64",
+   "LL": "int64",
+   "Vo": "float64",
+   "Va": "float64",
+   "AdjFactor": "float64",
+   "AdjO": "float64",
+   "AdjH": "float64",
+   "AdjL": "float64",
+   "AdjC": "float64",
+   "AdjVo": "float64"
   }
  },
  "jquants/fins_summary": {
@@ -229,10 +259,26 @@
  },
  "jquants/margin_weekly": {
   "columns": [
-   "_empty"
+   "Code",
+   "Date",
+   "IssType",
+   "LongNegVol",
+   "LongStdVol",
+   "LongVol",
+   "ShrtNegVol",
+   "ShrtStdVol",
+   "ShrtVol"
   ],
   "dtypes": {
-   "_empty": "bool"
+   "Date": "datetime64[us]",
+   "Code": "str",
+   "ShrtVol": "float64",
+   "LongVol": "float64",
+   "ShrtNegVol": "float64",
+   "LongNegVol": "float64",
+   "ShrtStdVol": "float64",
+   "LongStdVol": "float64",
+   "IssType": "str"
   }
  },
  "jquants/options_225": {

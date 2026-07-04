@@ -59,8 +59,16 @@ def finding(check: str, severity: str, count: int, detail: str) -> None:
 
 
 def _latest_file(d: Path) -> Path | None:
-    fs = sorted(p for p in d.glob("*.parquet") if p.is_file())
-    return fs[-1] if fs else None
+    """最新の**実データ**ファイル（_empty マーカー・0行ファイルはスキップ）。"""
+    import pyarrow.parquet as pq
+    for p in sorted((p for p in d.glob("*.parquet") if p.is_file()), reverse=True):
+        try:
+            if ("_empty" not in pq.read_schema(p).names
+                    and pq.read_metadata(p).num_rows > 0):
+                return p
+        except Exception:  # noqa: BLE001
+            continue
+    return None
 
 
 # --- 1. wide 概観 -----------------------------------------------------------
@@ -114,7 +122,17 @@ def check_calendar(deep: bool) -> None:
     wk = idx[idx.weekday >= 5]
     if len(wk):
         finding("calendar", "WARN", len(wk), f"週末日付が混入: {[str(d.date()) for d in wk[:3]]}")
-    files = {f.stem for f in (DATA / "jquants" / "daily").glob("*.parquet")}
+    # 祝日等の空マーカーファイル（_empty 列のみ）はミラー側集合から除外（誤検知防止）
+    files = set()
+    for f in (DATA / "jquants" / "daily").glob("*.parquet"):
+        try:
+            import pyarrow.parquet as pq
+            if ("_empty" in pq.read_schema(f).names
+                    or pq.read_metadata(f).num_rows == 0):
+                continue
+        except Exception:  # noqa: BLE001
+            pass
+        files.add(f.stem)
     widedays = {d.strftime("%Y%m%d") for d in idx}
     scope = widedays if deep else {d.strftime("%Y%m%d") for d in idx[-NIGHTLY_DAYS:]}
     miss_in_files = sorted(scope - files)

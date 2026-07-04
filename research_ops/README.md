@@ -12,6 +12,9 @@ research_loop/（研究サイクル）と対をなす**運用側**の永続状�
 | `monitor_log.jsonl` | `/strategy-monitor`（examples/strategy_monitor.py） | 月次判定の append-only ログ（PSR・e値・CUSUM） |
 | `monitor_reports/` | `/strategy-monitor` | 月次健全性レポート |
 | `acquisitions/` | `/data-acquire` | データ調達の記録（出所・取得日・検証結果・再現スクリプトへの参照） |
+| `data_update_log.jsonl` | `/data-update` | 一括更新の実行記録（ソース別成否・追加日数・QA検収結果） |
+| `data_ideas.md` | `/data-scout` | オルタナ/新規データソース台帳（D-n・取得待ち行列＝/data-acquire の入力） |
+| `surveys/` | `/data-scout` | データソース調査レポート |
 
 ハッシュ台帳等の機械ローカル状態は `data/qa/`（gitignore 圏）。
 

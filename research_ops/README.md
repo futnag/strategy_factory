@@ -1,0 +1,20 @@
+# research_ops — 運用系スキルの状態ディレクトリ
+
+research_loop/（研究サイクル）と対をなす**運用側**の永続状態。各スキルの決定論的コアが
+書き込み、スキル（LLM）は解釈・提案・レポートのみを行う。
+
+| ファイル/ディレクトリ | 書き手 | 内容 |
+|---|---|---|
+| `data_qa_log.jsonl` | `/data-qa`（examples/data_qa.py） | 監査 findings の append-only ログ |
+| `data_contract.json` | 〃（--init-contract 時のみ） | 主要データディレクトリのスキーマ契約 |
+| `data_qa_reports/` | `/data-qa` | 監査レポート（解釈・修復提案・実施記録） |
+| `monitor_config.json` | 人間（認定時に凍結） | 稼働スリーブの認定値（m・tol・σ_max 等）＝監視の帰無仮説 |
+| `monitor_log.jsonl` | `/strategy-monitor`（examples/strategy_monitor.py） | 月次判定の append-only ログ（PSR・e値・CUSUM） |
+| `monitor_reports/` | `/strategy-monitor` | 月次健全性レポート |
+| `acquisitions/` | `/data-acquire` | データ調達の記録（出所・取得日・検証結果・再現スクリプトへの参照） |
+
+ハッシュ台帳等の機械ローカル状態は `data/qa/`（gitignore 圏）。
+
+**原則**: ①append-only の時刻印ログ＋期待値との定期 diff（全スキル共通の骨格）
+②数値はコードが計算・LLM は翻訳と提案のみ ③市場データの自動修復禁止（flag, don't clean）
+④キルスイッチ等の重大操作は常に人間ゲート。

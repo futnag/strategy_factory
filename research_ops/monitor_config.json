@@ -1,0 +1,39 @@
+{
+  "_comment": "稼働スリーブの認定値（監視の帰無仮説）。認定時に人間が凍結し、以後の調整禁止（攻撃面）。claimed_sr_ann は docs/03 §6.16 の計画帯下限（保守）から seed。sigma_ann_max は想定σに25%バッファ。TO_CONFIRM=人間の確認待ち。",
+  "frozen_at": "2026-07-04",
+  "frozen_by": "seed（人間の確認待ち: TO_CONFIRM）",
+  "series": {
+    "combo_net": {
+      "label": "旗艦×TSMOM 合成（Phase 2 本番）",
+      "claimed_sr_ann": 0.45,
+      "sigma_ann_max": 0.12,
+      "tol_sr_ann": 0.10,
+      "source": "docs/03 §6.16・status.json plan_band 下限（保守側）",
+      "status": "TO_CONFIRM"
+    },
+    "eq": {
+      "label": "旗艦（value+PEAD LT）",
+      "claimed_sr_ann": 0.45,
+      "sigma_ann_max": 0.20,
+      "tol_sr_ann": 0.10,
+      "source": "docs/03 §7.4（OOS +0.62 は post-hoc のため計画帯下限を採用）",
+      "status": "TO_CONFIRM"
+    },
+    "ts": {
+      "label": "TSMOM オーバーレイ",
+      "claimed_sr_ann": 0.60,
+      "sigma_ann_max": 0.14,
+      "tol_sr_ann": 0.15,
+      "source": "docs/03 §6.15（全期間SRの保守値・ボラ目標0.10+バッファ）",
+      "status": "TO_CONFIRM"
+    }
+  },
+  "e_process": {
+    "lambda_grid": [0.01, 0.02, 0.05, 0.1, 0.15, 0.2],
+    "thresholds": {"amber": 5.0, "review": 10.0, "kill_candidate": 20.0},
+    "_note": "WWZ Remark 3 の慣行。e過程の途中リセット禁止・m/σ_max の事後調整禁止"
+  },
+  "cusum": {"k_sigma": 0.5, "h_sigma": 5.0},
+  "drawdown_thresholds": {"alert": -0.08, "derisk": -0.12, "stop": -0.15,
+                          "_note": "元本基準・status.json と同一（docs/02 D5）"}
+}

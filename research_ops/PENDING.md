@@ -9,16 +9,18 @@
 
 ## Open
 
-### P-5 [investigate] 夜間ワークフローが 6/17 以来ダッシュボードを更新していない疑い（2026-07-04・P-4 調査中に発見）
-- ops リポ `data.json` の generated_at が **2026-06-17 19:59 のまま**（手動修正前）＝
-  phase2.yml の「Build dashboard data.json」ステップ（`if: gate.ready == 'true'`）が
-  18日間発火していない。原因候補: GitHub Actions cache 上の J-Quants ミラーが
-  未シード完了で gate が常に false / ワークフロー自体の失敗（Failure issue 未確認）。
-- 確認方法: `gh run list --repo futnag/strategy-factory-ops --workflow phase2-nightly`
-  で直近の成否・`gh issue list --label phase2-failure` を見る。gate が詰まっているなら
-  シードを1回手元で流して cache を温める / mirror を Actions cache 経由で投入。
-- 実害: 現状ダッシュボードは手動修正済み（P-4）＝即時の誤表示は解消。ただし
-  **無人運用の心臓部が止まっている可能性**＝スケジューラ試験の前に要確認。
+### P-5b [approve] gate 修正の push 承認（2026-07-04・調査完了に伴う後継）
+- **調査完了・根本原因確定**: 夜間は毎晩**成功**していたが、Data completeness gate が
+  `missing==0` を要求＝J-Quants 公表ラグ（直近営業日は当日未公表で daily_quotes が
+  恒常的に1日欠損）で **ready=false が固定化**（6/28・7/1・7/3 いずれも missing=1）。
+  結果、reconcile・dashboard build・commit・**キルスイッチ評価**が 6/17 以降**毎晩 skip**。
+  ＝自動キルスイッチが約18日間無効だった（安全上の問題。現 DD −4.09% は閾値内だが
+  下落時に自動警報が出ない状態だった）。
+- 実施済み: ops リポ phase2.yml の gate を per-dataset 判定へ修正（LAG_TOLERANCE_BD=3・
+  シード未完と定常ラグを分離）。**ローカルコミット `be1a4d1`・未 push**（本番キルスイッチの
+  発火条件を変えるため push 前にレビュー用に保留）。3シナリオで新旧比較検証済み。
+- 承認事項: `be1a4d1` の push 可否。push すれば当夜（21:30 JST）から reconcile と
+  キルスイッチ評価が復活し data.json も自動更新される。
 - 判断: ＜未記入＞
 
 ## Resolved

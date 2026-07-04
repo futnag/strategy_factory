@@ -183,14 +183,22 @@ def check_l5_schemas() -> None:
         ok("L5", "IDEAS/BACKLOG の書式 OK")
 
 
+def lock_age_hours(started_at: str) -> float:
+    """ロックの経過時間（時間）。started_at は tz 付き（date -Iseconds 等）でも
+    tz 無しでもよい＝now を started の awareness に合わせ naive/aware 混在の
+    減算 TypeError を防ぐ（operator が毎回書くロックで headless を止めないため）。"""
+    started = datetime.fromisoformat(started_at)
+    now = datetime.now(started.tzinfo) if started.tzinfo else datetime.now()
+    return (now - started).total_seconds() / 3600
+
+
 def check_l6_lock(baseline: dict) -> None:
     if not LOCK.exists():
         ok("L6", "operator ロックなし")
         return
     try:
         info = json.loads(LOCK.read_text(encoding="utf-8"))
-        age_h = (datetime.now() - datetime.fromisoformat(info["started_at"])
-                 ).total_seconds() / 3600
+        age_h = lock_age_hours(info["started_at"])
         if age_h > baseline.get("lock_stale_hours", 6):
             viol("L6", f"stale ロック検知（{age_h:.1f}h 前・{info.get('holder', '?')}）"
                        "＝前セッションの異常終了疑い。内容確認のうえ手動削除を")

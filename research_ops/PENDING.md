@@ -9,6 +9,17 @@
 
 ## Open
 
+### P-7 [incident] loop_lint L6 の tz 混在バグ（2026-07-04・operator 初回起動で検出・修正済み）
+- **症状**: operator が書くロックの started_at が tz 付き（`date -Iseconds`）だと
+  loop_lint L6 が `datetime.now()`（naive）との減算で TypeError → HARD 誤発火。
+  **headless 運用なら毎回クラッシュ＝自律ループが起動不能だった致命バグ**。
+- **修正済み**（本セッション）: L6 を純関数 `lock_age_hours()` に切出し naive/aware 両対応・
+  operator SKILL のロック仕様を naive local 推奨に明記・回帰テスト3本追加（全緑）。
+  loop_lint = 全ガードレール通過を確認。
+- **要・人間確認**: 修正の push（loop_lint.py・SKILL.md・tests・research_ops）。
+  内容妥当なら本項を Resolved へ。
+- 判断: ＜未記入・修正済み push 待ち＞
+
 ### P-6 [config] 週次 K 上限の初週拡大＝要・復帰判断（2026-07-04・人間設定）
 - **人間が k_weekly_limit を 12→48 に拡大**（初週の稼働テスト目的・研究サイクル経路を
   実際に回すため）。loop_lint 確認済み＝32/48・全ガードレール通過（BUDGET 解除）。

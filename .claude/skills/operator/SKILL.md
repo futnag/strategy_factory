@@ -12,8 +12,10 @@ description: 自律運用のディスパッチャ（1起動＝状態把握→優
 
 1. **ロック**: 開始時に `research_ops/operator.lock` を確認。存在し新鮮（<6h）なら
    **即終了**（並行実行禁止）。stale（≥6h）なら中身をブリーフに記録して上書き取得。
-   取得時に `{"holder": "operator", "started_at": "<ISO>", "action": "<予定>"}` を書き、
-   終了時に必ず削除（異常終了への備え＝次回の stale 検知が保険）。
+   取得時に `{"holder": "operator", "started_at": "<ISO・naive local>", "action": "<予定>"}`
+   を書き、終了時に必ず削除（異常終了への備え＝次回の stale 検知が保険）。
+   started_at は `datetime.now().isoformat()` 相当の**tz 無し**を推奨（loop_lint L6 は
+   tz 付きも許容するが、リポ全体の naive local 慣行に合わせる）。
 2. **loop_lint ゲート**: ロック直後に必ず実行。
    - exit 1（HARD）→ PENDING に incident 追記・ブリーフ作成・**即停止**（何も実行しない）
    - exit 2（BUDGET）→ 研究サイクル系（red-team→cycle・replicate）は選択肢から除外

@@ -14,14 +14,14 @@
   突合のうえ status を CONFIRMED に更新してください（以後の変更は禁止＝攻撃面）。
 - 判断: ＜未記入＞
 
-### P-2b [approve] phase2_reconcile.py の1行修正の適用（2026-07-04・調査完了に伴う後継）
-- **調査完了**（research_ops/ops_review_reports/2026-07-04-P2-investigation.md）:
-  月次会計側のバグ＝`ext_cl.asof(val_date)` の全列非NaN巻き戻りでヘッジ/TS が
-  **6/8 の古値評価**→ status は +1.11% だが真値 ≈ **−4.1%**（キルスイッチの目隠し状態。
-  現時点は alert 閾値未達＝即時アクション不要）。
-- 承認事項: ①`ext_cl.ffill().asof(val_date)` への修正（ローカル＋ops リポ両方）＋
-  鮮度ガード追加 ②investers/ の更新停止12系列の扱い。Phase 2 コードは接触禁止圏のため
-  **あなたの明示承認があれば私が修正＋検証まで実施**します。
+### P-4 [approve] ops リポへの同修正の適用（2026-07-04・P-2b の残件）
+- ローカルの phase2_reconcile.py は修正済み（コミット `eceb9fd`・P-2b 承認による）。
+  **夜間 GitHub Actions（ops リポ）が同スクリプトを使っている場合は同じパッチの適用が必要**
+  （それまでダッシュボードは古値ベースの表示が続く）。パッチ内容は
+  ops_review_reports/2026-07-04-P2-investigation.md §修正案＋コミット `eceb9fd` の diff。
+- 副次: `data/investers/` の更新停止12系列（dow, nickel 等・6/8停止）の扱い
+  （update_external の対象化 or パネル分離）は別途判断。鮮度ガードにより
+  実害は既に遮断済み＝急ぎではない。
 - 判断: ＜未記入＞
 
 ### P-3 [approve] 週次 K 上限の設定確認（2026-07-04・loop_lint）
@@ -32,4 +32,9 @@
 
 ## Resolved
 
-（なし）
+### P-2 / P-2b [investigate→approve] Phase 2 成果物間の乖離 → 月次会計バグ修正（2026-07-04 解決）
+- 根本原因: `DataFrame.asof` の全列非NaN巻き戻り（詳細: ops_review_reports/2026-07-04-P2-investigation.md）。
+- 判断: **ユーザー承認「P-2b 承認、修正して」（2026-07-04）** → 修正適用（コミット `eceb9fd`）。
+- 検証: months⇔equity_daily 完全一致（combo −4.09%）・ops_review 初の全クリーン
+  （FAIL=0/WARN=0）・関連テスト18本緑・loop_lint L1 は承認済みコミットとして除外登録。
+- 残件は P-4（ops リポ側の適用）へ分離。

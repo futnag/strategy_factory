@@ -47,6 +47,13 @@ ext_asof = ext_cl.ffill().asof(val_date)
 **適用先はローカルと ops リポの両方**。修正後に `phase2_reconcile.py` を再実行し、
 months と equity_daily の一致（±cost_frac）を確認すること。
 
+## 解決記録（2026-07-04 追記）
+
+ユーザー承認（P-2b）に基づき修正適用＝コミット `eceb9fd`。`ffill().asof(val_date)`＋
+5営業日鮮度ガード（stale→NaN→既存 DATA-ERROR 経路）。検証: months⇔equity_daily
+**完全一致**（eq −5.41%／ts −0.95%／combo −4.09%）・ops_review 全チェック初のクリーン・
+production/phase2 テスト18本緑。ops リポ側の適用は P-4 として残件。
+
 ## 副次的発見（別対応可）
 
 - `data/investers/` の非 Phase 2 系列（12本）が 6/8 以降更新停止＝更新対象の明確化

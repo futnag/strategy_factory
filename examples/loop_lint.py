@@ -70,16 +70,23 @@ def section_a_text() -> str:
     return m.group(1) if m else ""
 
 
-def check_l1_forbidden() -> None:
+def check_l1_forbidden(baseline: dict) -> None:
+    """接触禁止パスの変更検知。人間が明示承認したコミットは
+    baseline の l1_approved_commits（フルハッシュ）で除外できる（人間のみ編集）。"""
     dirty = git("status", "--porcelain")
-    recent = git("log", "-5", "--name-only", "--pretty=format:")
+    approved = set(baseline.get("l1_approved_commits", []))
+    commits = [h for h in git("log", "-5", "--format=%H").split() if h not in approved]
+    n0 = len(VIOLATIONS)
     for path in FORBIDDEN:
         if re.search(rf"^..? .*{re.escape(path)}", dirty, re.M):
             viol("L1", f"接触禁止パスに未コミット変更: {path}")
-        elif path in recent:
-            viol("L1", f"接触禁止パスが直近コミットで変更されている: {path}")
-    if not any(v.startswith("[L1]") for v in VIOLATIONS):
-        ok("L1", "接触禁止パス（docs/03・production・phase2_*）に変更なし")
+            continue
+        for h in commits:
+            if path in git("show", "--name-only", "--format=", h):
+                viol("L1", f"接触禁止パスが未承認コミット {h[:8]} で変更されている: {path}")
+                break
+    if len(VIOLATIONS) == n0:
+        ok("L1", f"接触禁止パスに未承認変更なし（承認済み {len(approved)}件を除外）")
 
 
 def check_l2_section_a(baseline: dict, freeze: bool) -> None:
@@ -198,7 +205,7 @@ def main(argv: list[str]) -> int:
     print(f"loop_lint  {datetime.now():%Y-%m-%d %H:%M}")
     baseline = (json.loads(BASELINE.read_text(encoding="utf-8"))
                 if BASELINE.exists() else dict(DEFAULTS))
-    check_l1_forbidden()
+    check_l1_forbidden(baseline)
     check_l2_section_a(baseline, "--freeze-a" in argv)
     check_l3_prereg_order()
     check_l4_k_budget(baseline)

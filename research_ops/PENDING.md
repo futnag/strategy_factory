@@ -9,21 +9,22 @@
 
 ## Open
 
-### P-5b [approve] gate 修正の push 承認（2026-07-04・調査完了に伴う後継）
-- **調査完了・根本原因確定**: 夜間は毎晩**成功**していたが、Data completeness gate が
-  `missing==0` を要求＝J-Quants 公表ラグ（直近営業日は当日未公表で daily_quotes が
-  恒常的に1日欠損）で **ready=false が固定化**（6/28・7/1・7/3 いずれも missing=1）。
-  結果、reconcile・dashboard build・commit・**キルスイッチ評価**が 6/17 以降**毎晩 skip**。
-  ＝自動キルスイッチが約18日間無効だった（安全上の問題。現 DD −4.09% は閾値内だが
-  下落時に自動警報が出ない状態だった）。
-- 実施済み: ops リポ phase2.yml の gate を per-dataset 判定へ修正（LAG_TOLERANCE_BD=3・
-  シード未完と定常ラグを分離）。**ローカルコミット `be1a4d1`・未 push**（本番キルスイッチの
-  発火条件を変えるため push 前にレビュー用に保留）。3シナリオで新旧比較検証済み。
-- 承認事項: `be1a4d1` の push 可否。push すれば当夜（21:30 JST）から reconcile と
-  キルスイッチ評価が復活し data.json も自動更新される。
-- 判断: ＜未記入＞
+（なし）
 
 ## Resolved
+
+### P-5 / P-5b [investigate→approve] 夜間 gate の恒常 false（キルスイッチ約18日無効）→ 修正・稼働確認（2026-07-04 解決）
+- 根本原因: Data completeness gate の `missing==0` が J-Quants 公表ラグと衝突し
+  ready=false 固定化＝reconcile/dashboard/commit/キルスイッチが 6/17 以降毎晩 skip。
+- 判断: **ユーザー承認「P-5b 承認、push して」（2026-07-04）**。
+- 実施: gate を per-dataset ラグ許容判定へ（ops `be1a4d1`）＋欠落した
+  `up = DataUpdater()` の回帰修正（`06bdee0`・手動起動で NameError を検出し即修正）。
+- **稼働確認**: workflow_dispatch 再実行が 16m50s で成功＝gate 通過・reconcile・
+  Supabase push・dashboard build・**キルスイッチ評価**が全て実行。bot 自動コミット
+  `aeafdeb data: nightly 2026-07-04`＝data.json 自動更新復活（cum_net −4.12% /
+  asof 2026-07-03 / kill OK）。alert issue の誤発火なし。
+- 教訓: YAML 埋め込み Python はローカルで「書き直したコピー」でなく**ファイルから抽出して
+  実行**して検証すべき（今回 up= 欠落を初回 push で見逃した）。
 
 ### P-4 [approve] ops リポへの同修正の適用（2026-07-04 解決）
 - **調査結果: ops リポにコード修正は不要**。phase2.yml は strategy_factory を

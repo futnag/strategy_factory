@@ -1,1 +1,2 @@
 {"run":"2026-07-04T20:07:59+09:00","decision":"incident-fix","rationale":"loop_lint L6 HARD誤発火(tz混在)=headless致命バグを初回起動で検出。規則2に従い研究サイクルは走らせず修正を本セッションのアクションとした","result":"L6をlock_age_hours純関数化しnaive/aware両対応・SKILL更新・回帰テスト3本追加・全ゲート通過","action_taken":"loop_lint_fix"}
+{"run":"2026-07-04T20:25:35+09:00","decision":"research-cycle:topix_staged_flow","rationale":"規則5該当（BUDGET外・BACKLOG⬜2）。先頭⬜はred-team済み(revise)→反映してcycle実行","result":"FAIL DSR0.00 K=5。gross機構実在・削減特異だが借株+容量で執行不能。H-20追加","action_taken":"research_cycle","k_added":5}

@@ -9,19 +9,30 @@
 
 ## Open
 
-
-### P-4 [approve] ops リポへの同修正の適用（2026-07-04・P-2b の残件）
-- ローカルの phase2_reconcile.py は修正済み（コミット `eceb9fd`・P-2b 承認による）。
-  **夜間 GitHub Actions（ops リポ）が同スクリプトを使っている場合は同じパッチの適用が必要**
-  （それまでダッシュボードは古値ベースの表示が続く）。パッチ内容は
-  ops_review_reports/2026-07-04-P2-investigation.md §修正案＋コミット `eceb9fd` の diff。
-- 副次: `data/investers/` の更新停止12系列（dow, nickel 等・6/8停止）の扱い
-  （update_external の対象化 or パネル分離）は別途判断。鮮度ガードにより
-  実害は既に遮断済み＝急ぎではない。
+### P-5 [investigate] 夜間ワークフローが 6/17 以来ダッシュボードを更新していない疑い（2026-07-04・P-4 調査中に発見）
+- ops リポ `data.json` の generated_at が **2026-06-17 19:59 のまま**（手動修正前）＝
+  phase2.yml の「Build dashboard data.json」ステップ（`if: gate.ready == 'true'`）が
+  18日間発火していない。原因候補: GitHub Actions cache 上の J-Quants ミラーが
+  未シード完了で gate が常に false / ワークフロー自体の失敗（Failure issue 未確認）。
+- 確認方法: `gh run list --repo futnag/strategy-factory-ops --workflow phase2-nightly`
+  で直近の成否・`gh issue list --label phase2-failure` を見る。gate が詰まっているなら
+  シードを1回手元で流して cache を温める / mirror を Actions cache 経由で投入。
+- 実害: 現状ダッシュボードは手動修正済み（P-4）＝即時の誤表示は解消。ただし
+  **無人運用の心臓部が止まっている可能性**＝スケジューラ試験の前に要確認。
 - 判断: ＜未記入＞
 
-
 ## Resolved
+
+### P-4 [approve] ops リポへの同修正の適用（2026-07-04 解決）
+- **調査結果: ops リポにコード修正は不要**。phase2.yml は strategy_factory を
+  `ref:` 指定なしで checkout（`main` HEAD を使用）＝main を push すれば次回夜間から
+  修正版 reconcile が自動適用される。
+- 実施: 配信中の `data.json` が 6/17 以来 cum_net +0.61%（誤）を表示していたため、
+  ローカルの修正済み成果物から再生成して ops リポにコミット（`99b4cc8`・要 push）＝
+  正値 cum_net −4.09% / asof 2026-07-03 / kill OK に即時是正。
+- 副次: `data/investers/` の更新停止12系列は鮮度ガードで実害遮断済み＝別途判断（急がず）。
+- **push 待ち**: main（sf・`eceb9fd` 含む）＋ ops（`99b4cc8`）の両方。夜間ワークフロー
+  停止疑いは P-5 へ分離。
 
 ### P-1 [config] monitor_config.json の認定値の凍結（2026-07-04 解決）
 - 判断: **ユーザー承認「残りはすべて推奨の内容で決定」（2026-07-04）**＝

@@ -90,6 +90,8 @@ $env:PYTHONUTF8="1"; .\.venv\Scripts\python.exe examples\loop_status.py
   §2 事前登録（仮説 H1..Hn・経済的根拠・データ＆PIT 確認・**固定グリッド表と K**・judge 配線
   （scope/costs/frictions/universe）・**合格基準＝DSR≥0.95＋事前固定の副次基準**・既知の限界）/
   §3 実装ステージ（同一サイクル内で許される段階を事前列挙）/ §4 出典 / §5 結果（空欄）。
+- **（任意・推奨）敵対的レビュー**: コミット①の前に `/red-team` で草稿を攻撃させる
+  （H-n 全数照合・PIT リーク狩り・統制セル確認・K 会計監査）。revise 判定なら反映してから登録。
 - **コミット①**: `git add docs/NN-*.md research_loop/` →
   `research(<scope>): preregistration (docs/NN)`。**実行前にコミットすること**（改竄防止のタイムスタンプ）。
 
@@ -146,3 +148,4 @@ $env:PYTHONUTF8="1"; .\.venv\Scripts\python.exe examples\research_<scope>.py
 |---|---|---|---|---|
 | 2026-07-03 | (初版) | §B v1.0 制定 | docs/03・docs/45-48・TODO.md の運用実績を手順化 | — |
 | 2026-07-03 | (基盤・人間承認) | Step 1 に IDEAS 昇格経路と /research-scout 提案を追加 | scout→cycle 供給ライン新設（承認済みプラン） | research_loop/IDEAS.md |
+| 2026-07-04 | (基盤・人間承認) | Step 3 に /red-team（任意・推奨）を追加 | K 消費前の安価な敵対的レビュー（Tier2 スキル群） | .claude/skills/red-team/ |

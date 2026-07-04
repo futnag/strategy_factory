@@ -9,10 +9,6 @@
 
 ## Open
 
-### P-1 [config] monitor_config.json の認定値の凍結確認（2026-07-04・/strategy-monitor）
-- 監視の帰無仮説（claimed_sr_ann 等）が seed 状態（TO_CONFIRM）。docs/03 §6.15-6.16 と
-  突合のうえ status を CONFIRMED に更新してください（以後の変更は禁止＝攻撃面）。
-- 判断: ＜未記入＞
 
 ### P-4 [approve] ops リポへの同修正の適用（2026-07-04・P-2b の残件）
 - ローカルの phase2_reconcile.py は修正済み（コミット `eceb9fd`・P-2b 承認による）。
@@ -24,13 +20,17 @@
   実害は既に遮断済み＝急ぎではない。
 - 判断: ＜未記入＞
 
-### P-3 [approve] 週次 K 上限の設定確認（2026-07-04・loop_lint）
-- 既定 12試行/週（≈3サイクル）。今週は人力ビルドで32消費済み＝自律サイクルは
-  次週まで待機が既定挙動。上限を変える場合は research_ops/loop_lint_baseline.json の
-  k_weekly_limit を編集。
-- 判断: ＜未記入＞
 
 ## Resolved
+
+### P-1 [config] monitor_config.json の認定値の凍結（2026-07-04 解決）
+- 判断: **ユーザー承認「残りはすべて推奨の内容で決定」（2026-07-04）**＝
+  claimed_sr/tol は seed どおり（combo 0.45 / eq 0.45 / ts 0.60）・combo の
+  sigma_ann_max のみ 0.12→0.20 に修正して全系列 CONFIRMED 凍結。
+  e過程 wealth は全て初期値1.0＝リセット不要を確認。以後の変更禁止。
+
+### P-3 [approve] 週次 K 上限の設定確認（2026-07-04 解決）
+- 判断: **ユーザー承認（同上）**＝ k_weekly_limit=12（週≈3サイクル）で確定。変更なし。
 
 ### P-2 / P-2b [investigate→approve] Phase 2 成果物間の乖離 → 月次会計バグ修正（2026-07-04 解決）
 - 根本原因: `DataFrame.asof` の全列非NaN巻き戻り（詳細: ops_review_reports/2026-07-04-P2-investigation.md）。

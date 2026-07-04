@@ -24,19 +24,18 @@
 
 ## 1. 開始前チェックリスト（一度だけ）
 
-- [ ] **P-1 監視の認定値を凍結**: `research_ops/monitor_config.json` の各 `claimed_sr_ann` /
-      `sigma_ann_max` / `tol_sr_ann` を docs/03 §6.15-6.16 と突合し、納得したら
-      `"status": "CONFIRMED"`・`"frozen_by": "<あなた>"` に書き換え（以後変更禁止＝攻撃面）。
-- [ ] **P-2 Phase 2 乖離の解決**: equity_daily と status/months の符号乖離（PENDING 参照）。
-      Claude に「P-2 を調査して」で読み取り専用調査を依頼可。**未解決のまま無人化すると
-      monitor/ops-review の読みが信用できない**ため、開始前に必須。
-- [ ] **P-3 週次 K 上限の確認**: `research_ops/loop_lint_baseline.json` の
-      `k_weekly_limit: 12`（≈週3サイクル）。変更するならここを編集（人間のみ）。
+- [x] **P-1 監視の認定値を凍結**（2026-07-04 完了・combo σ_max 0.12→0.20 修正の上
+      全系列 CONFIRMED。以後変更禁止＝攻撃面）。
+- [x] **P-2 Phase 2 乖離の解決**（2026-07-04 完了・月次会計の DataFrame.asof バグ修正＝
+      コミット `eceb9fd`。**残件 P-4: ops リポ側への同パッチ適用**＝ダッシュボードは
+      適用まで古値表示）。
+- [x] **P-3 週次 K 上限の確認**（2026-07-04 完了・k_weekly_limit=12 で確定）。
 - [ ] **git push**: ローカルコミットを origin へ（push は常に人間の操作）。
-- [ ] **registry バックアップ**: `data/research_trials.db` を `data/backup/` へコピー
-      （以後 月1・PLAYBOOK Step 10 の運用ノート）。
-- [ ] **権限設定**: 下記 §2 の方式を選択。
-- [ ] **フルテスト**: `.\.venv\Scripts\python.exe -m pytest -q` が全緑であること。
+- [x] **registry バックアップ**（2026-07-04 完了・data/backup/research_trials_2026-07-04.db。
+      以後 月1）。
+- [ ] **権限設定**: 下記 §2 の方式を選択（**手動試験運用の間は不要**＝対話セッションで
+      都度応答。スケジューラ移行時に方式Aを既定とする）。
+- [x] **フルテスト**（2026-07-04 完了・579 passed / 1 skipped）。
 
 ## 2. 権限方式の選択（無人実行の要）
 
@@ -55,7 +54,26 @@ claude -p "/operator" --model opus --permission-mode bypassPermissions
   `.claude/settings.local.json` に許可登録 → `--permission-mode acceptEdits` で運用。
 - 初期は未登録コマンドで停止が起きるため、1-2週は方式Bで様子見→Aへ、も可。
 
-## 3. スケジューラ登録（Windows）
+## 3. 運転モード
+
+### 3a. 手動試験運用（現在のモード・2026-07-04〜）
+
+スケジューラは使わず、人間が好きなタイミングで Opus セッションを開いて起動する:
+
+```
+claude --model opus        ← リポジトリのルートで対話セッションを開始
+> /operator plan           ← まず判断だけ確認（実行しない・推奨）
+> /operator                ← 納得したら実行（1起動＝1アクション＋ブリーフ）
+```
+
+- 頻度の目安: 平日夜に1回（データ鮮度と ToSTNeT の2週間窓が維持される）。
+- 対話モードなので権限プロンプトにはあなたが都度応答（許可が増えれば自然に減る）。
+- operator を介さず個別スキル（§4 のプロンプト集）を直接叩いてもよい。ただし
+  research-cycle 系は operator 経由が安全（lint ゲート・予算・PENDING 尊重が自動で効く）。
+- **試験運用の卒業条件の目安**: operator の判断に2週間ほど違和感がなく、ブリーフだけで
+  状況が把握できるようになったら §3b のスケジューラ登録へ。
+
+### 3b. スケジューラ登録（Windows・無人化する時）
 
 `research_ops/run_operator.cmd`（同梱・下記）を使う:
 

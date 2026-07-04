@@ -1,15 +1,15 @@
 {
-  "_comment": "稼働スリーブの認定値（監視の帰無仮説）。認定時に人間が凍結し、以後の調整禁止（攻撃面）。claimed_sr_ann は docs/03 §6.16 の計画帯下限（保守）から seed。sigma_ann_max は想定σに25%バッファ。TO_CONFIRM=人間の確認待ち。",
+  "_comment": "稼働スリーブの認定値（監視の帰無仮説）。2026-07-04 に人間が凍結済み＝以後の調整禁止（攻撃面）。凍結時の変更は combo_net の sigma_ann_max 0.12→0.20 のみ（ライブ日次マークの実現ボラ約30%に対し §6.16 の合成ボラ5.5%由来の0.12は誤警報側に過小・eq と同水準へ）。e過程 wealth は凍結時点で全て初期値1.0＝リセット不要を確認済み。",
   "frozen_at": "2026-07-04",
-  "frozen_by": "seed（人間の確認待ち: TO_CONFIRM）",
+  "frozen_by": "futnag（推奨値で承認・セッション 2026-07-04）",
   "series": {
     "combo_net": {
       "label": "旗艦×TSMOM 合成（Phase 2 本番）",
       "claimed_sr_ann": 0.45,
-      "sigma_ann_max": 0.12,
+      "sigma_ann_max": 0.20,
       "tol_sr_ann": 0.10,
-      "source": "docs/03 §6.16・status.json plan_band 下限（保守側）",
-      "status": "TO_CONFIRM"
+      "source": "docs/03 §6.16・status.json plan_band 下限（保守側）。σ_max は凍結時に 0.12→0.20（凍結記録参照）",
+      "status": "CONFIRMED"
     },
     "eq": {
       "label": "旗艦（value+PEAD LT）",
@@ -17,7 +17,7 @@
       "sigma_ann_max": 0.20,
       "tol_sr_ann": 0.10,
       "source": "docs/03 §7.4（OOS +0.62 は post-hoc のため計画帯下限を採用）",
-      "status": "TO_CONFIRM"
+      "status": "CONFIRMED"
     },
     "ts": {
       "label": "TSMOM オーバーレイ",
@@ -25,7 +25,7 @@
       "sigma_ann_max": 0.14,
       "tol_sr_ann": 0.15,
       "source": "docs/03 §6.15（全期間SRの保守値・ボラ目標0.10+バッファ）",
-      "status": "TO_CONFIRM"
+      "status": "CONFIRMED"
     }
   },
   "e_process": {

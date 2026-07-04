@@ -141,7 +141,16 @@ def main() -> int:
             # 外部系列だけ先の日付で評価するとヘッジ・TSMOM に見かけの損益が出る。
             val_date = cl_adj.index[-1]
             adj1 = cl_adj.iloc[-1].reindex(invested.index)
-            ext_asof = ext_cl.asof(val_date)
+            # 列ごとの最終既知値で評価する。DataFrame.asof(t) は「全列が非NaNの
+            # 最後の行」へ巻き戻るため、パネル内に更新停止系列が1本でもあると
+            # ヘッジ・TSMOM 全体が古値評価になり DD/キルスイッチが目隠しされる
+            # （P-2 調査 2026-07-04・research_ops/ops_review_reports/ 参照）。
+            # 5営業日超 stale な列は NaN のまま伝播させ、既存の DATA-ERROR 経路
+            # （drawdown_status → exit 2）で検出する（黙って古値を使わない）。
+            ext_asof = ext_cl.ffill().asof(val_date)
+            last_ok = ext_cl.apply(lambda s: s.last_valid_index())
+            stale = last_ok < (val_date - pd.tseries.offsets.BDay(5))
+            ext_asof = ext_asof.mask(stale)
             fut1 = float(ext_asof["nk225_fut"])
             ts1 = ext_asof.reindex(ts_notional.index)
             status = "進行中"

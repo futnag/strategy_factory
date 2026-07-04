@@ -59,6 +59,21 @@
 
 ## §4 サイクル記録（append-only・新しいものを下に）
 
+### 2026-07-04 topix_staged_flow — ❌ FAIL（F8亜型＋H-3＋容量死・DSR0.00・K=5）※初の自律 operator サイクル
+- 仮説: TOPIX 段階削減（四半期末×10段階・2022-10〜2025-01）の実施日近傍リバーサル（明田2022・
+  同日DiD・実効n=10・docs/60）。scout I-32・/data-acquire で解禁・red-team revise 全反映。
+- 結果: **gross 機構は実在しプラセボもクリーンだが執行不能で FAIL**。gross リバーサル [1,11)
+  **+75bps・8/10ステップ正**・時間プラセボ +16/−17bps（差+59bps）＝**削減特異で実施日に局在**。
+  圧力[−1,+1]−62bps→リバーサル+97bps の形状も再現。だが net SR = 0bps **+0.53** → 30bps **−0.63**
+  （借株300bps＋イベント30bps）・容量 **¥183万**＝小型ゆえ純化が消える。
+- 機構1行: **指数フロー対象＝定義上その指数の最小 float 銘柄**＝借株高・容量極小で、機構が
+  本物でも執行不能側に生まれる → **H-20 追加**。実効 n=10 は事前予告どおり認定不可（minTRL=∞）。
+- 収穫: 機構実在の判定という主目的は達成。Stage2（2026-10 前向き）は**大型サブセット or 執行
+  コスト実効低減の角度が無ければ EV 低**と確定（BACKLOG に反映）。
+- メタ: 初の operator 規則5経由の自律サイクル。red-team（revise）→prereg→実装→判定が
+  設計どおり連結。red-team ②（四半期末交絡）が gross プラセボ比較で明示的に解消された。
+- 成果物: docs/60 §5・examples/research_topix_staged_flow.py・data/reports/topix_staged_flow.html。
+
 ### 2026-07-03 unexpected_forecast — ❌ FAIL（F6 減衰・DSR0.37・K=4）
 - 仮説: 経営者予想の裁量部分 DF の過大評価と12ヶ月 unwind（scout I-43・JBFA2024 日本主標本・
   CARF F367 本文で仕様確認・docs/59）。

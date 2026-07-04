@@ -1,0 +1,6 @@
+{
+ "k_scope_limit": 8,
+ "k_weekly_limit": 12,
+ "lock_stale_hours": 6,
+ "playbook_a_sha256": "2ab9c866c3dd53f05be7bae3f1cd1196219dce218e9d16cc1729e6185032f7c5"
+}

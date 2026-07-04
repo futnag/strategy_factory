@@ -15,6 +15,12 @@ research_loop/（研究サイクル）と対をなす**運用側**の永続状�
 | `data_update_log.jsonl` | `/data-update` | 一括更新の実行記録（ソース別成否・追加日数・QA検収結果） |
 | `data_ideas.md` | `/data-scout` | オルタナ/新規データソース台帳（D-n・取得待ち行列＝/data-acquire の入力） |
 | `surveys/` | `/data-scout` | データソース調査レポート |
+| `PENDING.md` | 全スキル→人間 | 承認/判断の待ち行列（open に依存するアクションは実行禁止） |
+| `loop_lint_baseline.json` | 人間（--freeze-a・上限変更） | §A ハッシュ・K 予算（週次/scope）＝機械強制の基準 |
+| `operator.lock` / `operator_log.jsonl` / `briefs/` | `/operator` | 単一ライターロック・判断ログ・日次ブリーフ |
+| `retro/` | `/loop-retro` | ループ振り返りレポート |
+| `redteam/` | `/red-team` | 事前登録の敵対的レビュー記録 |
+| `replications/` | `/replicate` | 論文複製プロトコルと結果 |
 
 ハッシュ台帳等の機械ローカル状態は `data/qa/`（gitignore 圏）。
 

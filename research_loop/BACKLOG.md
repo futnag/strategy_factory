@@ -45,7 +45,12 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
 - **収穫**: H-12（SR上限の Stage-0 概算）・H-13（規制解除≠回復）。ロング簿除外スクリーンとしての
   残存価値のみ（対象少・影響軽微）。再評価条件なし＝打ち止め。
 
-### ⬜ governance_event_value — 東証PBR改革開示イベント条件付き value（旧 TODO #3・2026-07-05 データ部分取得で解禁）
+### ⏸ governance_event_value — 東証PBR改革開示イベント条件付き value（旧 TODO #3・tail KILL・D-7待ち）
+- **状態（2026-07-05・Stage-0 cheap-kill 後）**: ⏸ 保留。**解除条件＝D-7（TSE 資本コスト一覧 2024-01〜2025-04 backfill）取得**。
+  red-team 2026-07-05（revise）→ K=0 Stage-0（docs/63 §5）で **in-window tail（datable transition 135件・
+  2025-06/07 偏在・以降崩落）を value+size 残差×forward×placebo で cheap-kill → KILL**（全 spec で placebo 区別不能 p0.12〜0.22）。
+  ❌でない＝**論文本命（2024 salience shock の低PBR×高ROE repricing・I-9）は窓外で未検定**。**H-23 新設**
+  （salience ショック＝水準シフトで後日 drift 無・余波 tail は breadth 崩落＝ショック窓を取れ）。→ D-7 取得後に別 scope/prereg。
 - **解禁（2026-07-05・/data-acquire D-2）**: `data/tse_capital_disclosure/disclosure_panel.parquet`
   （JPX list.xlsx・**2025-05〜2026-05 の13月次snapshot**・PIT月末アンカー・開示済/検討中 status＋update_date）。
   ⚠ **カバレッジ限界**: list.xlsx は ~13月ローリング＝**2024 salience shock（2024-01 一覧表）は未収録**
@@ -271,3 +276,4 @@ TODO.md（凍結）から継承。詳細な判定は registry 各 scope・docs/0
 | 日付 | 候補（slug＋1行） | 棄却理由（Stage-0 チェック番号・H-n） | 証拠 |
 |---|---|---|---|
 | 2026-07-05 | sjm_per_factor_regime（per-factor regime 切替＝固定超え） | F5（固定未満）＋H-18（placebo 同値＝timing 情報ゼロ）＋H-1（mom 劣後）。H-11 は反証（430月・遷移 median 5＝推定可） | docs/61 §5・K=0 |
+| 2026-07-05 | governance_event_value **tail**（2025+ 新規開示の value 増分・※本命2024窓は別） | F6/H-9/H-17（salience 減衰・水準シフトで後日drift無）＋breadth 崩落（datable 135件・全spec placebo区別不能 p0.12〜0.22）→**H-23**。**⏸（scope自体は D-7=2024窓 backfill で再開）** | docs/63 §5・K=0 |

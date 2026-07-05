@@ -77,15 +77,19 @@ def main():
     # ── 月次ループ ───────────────────────────────────────────────────────
     months = sorted(m for m in ev_by_month if (m + 1) in ret.index and m in bm.index and m in mturn.index)
     rng = np.random.default_rng(SEED)
-    rows, per = [], []
+    rows, per, per_all = [], [], []
     for M in months:
         fwd = ret.loc[M + 1]
         bmv, tvv = bm.loc[M], mturn.loc[M]
         base = pd.concat({"y": fwd, "bm": bmv, "tv": tvv}, axis=1).dropna()
         if len(base) < MIN_UNIV:
             continue
-        ev = [c for c in ev_by_month[M] if c in base.index]
-        if len(ev) < MIN_EV:
+        ev_full = [c for c in ev_by_month[M] if c in base.index]
+        res_all = resid_on(fwd, bmv, tvv)   # 全 datable 月（pooled 診断用・§3.2 throwaway）
+        if res_all is not None and len([c for c in ev_full if c in res_all.index]) >= 3:
+            per_all.append((res_all, [c for c in ev_full if c in res_all.index]))
+        ev = ev_full
+        if len(ev) < MIN_EV:               # 主ゲートは breadth floor=MIN_EV の月のみ
             continue
         r = base["y"]
         raw = r.loc[ev].mean() - r.mean()
@@ -122,6 +126,17 @@ def main():
     m_res = out["val_size_resid"].mean()
     p_val = float((plac >= m_res).mean())
 
+    # 診断（throwaway・§3.2）: pooled event-level（全 datable transition・月クラスタ保存の power チェック）
+    pooled_ev = float(np.mean([res.loc[ev].mean() for res, ev in per_all]))  # 月平均→イベント数で加重
+    pool_events = [res.loc[ev] for res, ev in per_all]
+    n_pool = int(sum(len(e) for e in pool_events))
+    pooled_ew = float(pd.concat(pool_events).mean())      # 全イベント等加重（月クラスタ無視）
+    plac_pool = np.empty(NPLAC)
+    for k in range(NPLAC):
+        s = [res.iloc[rng.integers(0, len(res), len(ev))].mean() for res, ev in per_all]
+        plac_pool[k] = float(np.mean(s))
+    p_pool = float((plac_pool >= pooled_ev).mean())
+
     def ann_ir(x):
         x = np.asarray(x, float); x = x[~np.isnan(x)]
         return np.nan if len(x) < 2 or x.std(ddof=1) == 0 else x.mean() / x.std(ddof=1) * np.sqrt(12)
@@ -136,6 +151,8 @@ def main():
           f"hit {100*(out['val_size_resid']>0).mean():.0f}%")
     print(f"プラセボ null: mean {plac.mean():+.4%}  sd {plac.std():.4%}  p95 {np.percentile(plac,95):+.4%}")
     print(f"  → value+size 残差の片側 p値: {p_val:.3f}")
+    print(f"[診断] pooled({len(per_all)}月/{n_pool}件・§3.2 throwaway): 月加重残差 {pooled_ev:+.4%} (片側p {p_pool:.3f})・"
+          f"全イベント等加重 {pooled_ew:+.4%}")
     g_i, g_ii = m_res > 0, p_val < 0.05
     print(f"\nゲート (i) 残差>0        : {'PASS' if g_i else 'FAIL'} ({m_res:+.4%})")
     print(f"ゲート (ii) placebo外(p<.05): {'PASS' if g_ii else 'FAIL'} (p={p_val:.3f})")

@@ -59,6 +59,20 @@
 
 ## §4 サイクル記録（append-only・新しいものを下に）
 
+### 2026-07-05 governance_event_value — ⏸ KILL（tail cheap-kill・F6/H-17・K=0・D-7待ち）※窓不一致を red-team が事前捕捉
+- 仮説: TSE「資本コスト経営」開示イベント条件付き value（I-9 D'Ercole 2026・2024 salience shock で低PBR×高ROE repricing）。
+  本日 /data-acquire D-2 で解禁 → **red-team 2026-07-05 が「論文機構の 2024 窓は取得データ(2025-05+)の外」を事前捕捉**。
+- 結果: red-team 推奨どおり **K=0 Stage-0 cheap-kill のみ**（judge_grid 回さず）。窓内 transition は **datable 135件**
+  （77件が 2025-06/07 偏在・以降 <10/月に崩落＝salience 減衰の直接証拠）。**value+size 残差 forward は全 spec で
+  微正だが placebo 区別不能**（月次 p0.223・pooled p0.122・全EW+0.75%）＝**KILL だが null 確認でもない**（tail 薄すぎ）。
+- 機構1行: **salience ショックは水準シフトであって後日 drift でない**＋余波の event breadth 崩落 → **H-23 新設**。
+  ❌でなく **⏸（解除=D-7=2024窓 backfill）**＝本命は未検定・data-acquire で窓を取ってから別 scope。
+- 収穫: red-team の「窓分離」判断が judge K を節約（3セル×15bps を回さず K=0 で決着）。value 残差化×turnover中立×
+  placebo の event-study Stage-0 テンプレ（examples/research_governance_event_value.py）は D-7 取得後にそのまま再利用可。
+- メタ: user 指示「governance に進む」→ red-team（revise）→ 同一フローで cheap-kill 実行。**red-team が cycle の
+  設計を実データ前に矯正した好例**（窓不一致を掴まなければ judge を無駄撃ちしていた）。
+- 成果物: docs/63 §5・examples/research_governance_event_value.py・research_ops/redteam/2026-07-05-governance_event_value.md。
+
 ### 2026-07-05 buyback_execution_flow — ❌ FAIL（size/liquidity 交絡・F7亜型・best DSR0.80・K=3）※raw が本ループ2番目の接近だが交絡
 - 仮説: EDINET「自己株券買付状況報告書」提出（＝実執行中）企業は t+1 forward 超過（scout I-51・Clarke2022 FRL・
   執行フロー persistence・docs/62）。red-team 2026-07-05 revise 全反映（データ源 TDnet→EDINET 訂正・submit アンカー・in-regime）。

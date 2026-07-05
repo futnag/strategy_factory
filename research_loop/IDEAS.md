@@ -98,7 +98,11 @@ survey 参照／登録日。
   「再加重こそが復活させる」という主張自体が日本での検定価値＝別シグナル。次候補圏。
 - **スコア**: 機構4・新規性4・データ適合4・実装コスト3。
 
-### I-9 ⬆ TSE資本効率イニシアチブの再価格付け（低PBR×高ROE・開示イベント）
+### I-9 🧪 TSE資本効率イニシアチブの再価格付け（低PBR×高ROE・開示イベント）
+- **🧪 判定（2026-07-05・scope=governance_event_value・docs/63 §5）**: **tail は KILL・本命は D-7 待ちで ⏸**。
+  取得 D-2（2025-05+）は論文の 2024 salience shock 窓外＝**in-window tail（datable 135件）を value+size 残差×forward×
+  placebo で cheap-kill → 全 spec で placebo 区別不能（p0.12〜0.22）＝KILL（K=0）**。**H-23 新設**（salience ショックは
+  水準シフトで後日drift無・余波 tail は breadth 崩落）。**論文本命（2024窓の低PBR×高ROE repricing）は D-7 取得後に再検定**。
 - **出典**: D'Ercole, Wagner & Yamada (2025/2026) "Reputational Shocks and Capital Market Responses:
   The TSE Capital Efficiency Initiative" CEPR DP19971 / J. Corporate Finance 99, 103009（RePEc 確認済）。
 - **機構**: 2023-24 の東証要請＋2024-01 対応一覧表が salience shock＝**低PBR×高ROE**の慢性割安銘柄が

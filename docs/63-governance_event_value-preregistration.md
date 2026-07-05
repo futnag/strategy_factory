@@ -55,5 +55,23 @@
 - red-team 2026-07-05（verdict=revise）: 窓不一致（H-8/H-9）・H-17 drift 否定・H-22 size 交絡・value 残差化＋placebo・
   Stage-0 K=0 cheap-kill 化（research_ops/redteam/2026-07-05-governance_event_value.md）。
 
-## §5 結果
-**未実行**（事前登録コミット時点）。
+## §5 結果（2026-07-05 判定）
+**KILL（K=0・tail 条件付き FAIL）→ scope ⏸（解除条件＝D-7 取得）。** ❌ではない（論文 faithful な 2024 窓は未検定）。
+
+**イベント breadth（それ自体が所見）**: **cleanly-datable transition は 135件のみ**（前月 present-and-undisclosed→
+当月 開示済＝PIT 安全に日付可能なもの。prev=NaN の 153件＝リスト新規入りは日付不能で除外）。**77件が
+2025-06(61)/07(16) に偏在し以降 <10/月に崩落**（Standard 比率 66%）＝**salience 減衰の直接証拠**（H-9/F6/H-17）。
+
+**ゲート（value+size 残差・forward t+1・turnover 中立込み）**:
+- 主ゲート（月次・MIN_EV=10＝2月クリア）: 残差 **+0.98%/月**・placebo 片側 **p=0.223** → **ゲート(ii)未達＝KILL**。
+- 診断（pooled・6月/103件・§3.2 throwaway）: 月加重残差 +2.12%（p=0.122）・全イベント等加重 **+0.75%**。
+- **全 spec で点推定は微正だが placebo と区別不能**（p=0.12〜0.22）。tail が薄すぎて null を棄却できない。
+
+**解釈**: 微正の点推定はノイズか faint な残光かを **13月 tail の breadth では判別不能**。これは (a) red-team の
+F6/H-17 予測（2024 shock は減衰・遅れた開示に tradeable drift 無）と (b) データ窓問題（本命は 2024 窓＝手元に無）
+の両方と整合。**tail cheap-kill は KILL**（judge_grid は回さず K=0）。**本命（低PBR×高ROE の 2024 salience
+repricing）は D-7（2024-01〜2025-04 backfill）取得後に別 scope/prereg で検定**＝EV 最大の順序（red-team §I）。
+
+**自己改善**: **H-23 新設**（salience/評判ショック機構は**イベント時点の水準シフト**であって tradeable な後日
+drift でない・かつ post-shock の event breadth は崩落する＝**ショック窓そのものを取れ・余波の tail で代替するな**）。
+本命の判別には D-7 が gating＝data_ideas 待ち行列で最優先化。

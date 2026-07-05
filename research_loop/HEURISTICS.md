@@ -171,3 +171,15 @@ event-basket ロング × ユニバース・ショートは event 特異αでな
 **証拠**: buyback_execution_flow（executor raw bef_exec_ls DSR**0.80**/SR+1.54・プラセボ p=0.018 で「有意」に
 見えるが、turnover十分位中立 bef_exec_sizematch で **SR−0.07・DSR0.21**＝執行フロー特異αは無・純 size 交絡＝
 docs/62 §5・K=3）。H-18 が拾えない交絡軸＝別統制が要る、が要点。
+
+## H-23 salience/評判ショック機構は「水準シフト」であり tradeable な後日 drift でない — active
+規制・要請・一覧公表等の **salience/reputational ショック**による再価格付けは、**イベント時点の一度きりの
+水準シフト**（論文の CAR は event-time の repricing）＝**ショック後にロングしても取れる drift ではない**
+（H-17 と同根＝2024+ JP は即時織り込み）。かつ **post-shock の event breadth は急速に崩落**する（ショックで
+大半が対応済み→遅れた compliance は少数・小型・減衰域＝F6/H-9）。⇒ この型の仮説は **ショック窓そのもの
+（イベント発生時）を取得して検定**せよ。**余波の tail（ショック後の窓）で代替すると、breadth 不足で null を
+棄却も確認もできず、点推定は微正でも placebo と区別不能**になる。データが余波窓しか無いなら、ショック窓の
+backfill を **cycle 前の gating タスク**にせよ（judge を回す前に）。
+**証拠**: governance_event_value（論文 I-9 の機構＝2024-01 salience shock。手元 D-2 は 2025-05+ の余波のみ＝
+datable transition 135件・77件が 2025-06/07 に偏在し以降崩落。value+size 残差 forward は全 spec で p=0.12〜0.22＝
+placebo 区別不能＝**KILL だが null 確認でもない**＝tail が薄すぎ。本命は D-7=2024 窓 backfill が gating＝docs/63 §5・K=0）。

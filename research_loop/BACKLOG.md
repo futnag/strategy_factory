@@ -51,12 +51,15 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
 - **収穫**: H-12（SR上限の Stage-0 概算）・H-13（規制解除≠回復）。ロング簿除外スクリーンとしての
   残存価値のみ（対象少・影響軽微）。再評価条件なし＝打ち止め。
 
-### ⏸ governance_event_value — 東証PBR改革開示イベント条件付き value（旧 TODO #3・データ待ち）
-- **状態**: ⏸ 保留（2026-07-03 Stage-0 ①データ実在性で保留。サイクル 2026-07-03-trend-structure の
-  Step 1 で確認）。**解除条件**: 東証「資本コストや株価を意識した経営」対応開示企業一覧
-  （JPX 公表・月次 Excel・2024-01〜）の履歴取得。ローカル TDnet ミラーは 2026-06-24〜の3日分のみで
-  2023-24 のイベントタイミングが構成不能。静的 PBR×ROE ティルトだけなら value×quality 既試 redux
-  （F1/F7）＝イベント増分こそが検定対象（docs 出典 I-9 の設計指針参照）。
+### ⬜ governance_event_value — 東証PBR改革開示イベント条件付き value（旧 TODO #3・2026-07-05 データ部分取得で解禁）
+- **解禁（2026-07-05・/data-acquire D-2）**: `data/tse_capital_disclosure/disclosure_panel.parquet`
+  （JPX list.xlsx・**2025-05〜2026-05 の13月次snapshot**・PIT月末アンカー・開示済/検討中 status＋update_date）。
+  ⚠ **カバレッジ限界**: list.xlsx は ~13月ローリング＝**2024 salience shock（2024-01 一覧表）は未収録**
+  （archive/Wayback backfill が別途要）。ローカルで検定可能なのは **Standard 市場の in-window 新規開示
+  （~250件・主に 2025-06〜）＋開示済/検討中 の cross-section**（Prime は ~90%飽和＝左側打切り）。
+  → **red-team で「13月・Standard tail で機構検定に足るか / 2024 backfill を先にやるか」を要判断**。
+- **（旧）状態**: ⏸ 保留（2026-07-03 Stage-0 ①データ実在性で保留・trend-structure Step1 で確認）。
+  静的 PBR×ROE ティルトだけなら value×quality 既試 redux（F1/F7）＝**イベント増分こそが検定対象**（I-9）。
 - **補強（2026-07-04 scout）**: 出典論文は JCF forthcoming に格上げ。**Standard 市場の開示率は
   ~50%＝新規開示イベントは 2026 も継続発生中**（Prime >90% 飽和）＝取得タスクの価値上昇。
   月次リストは JPX 公表アーカイブから再構築可（surveys/2026-07-04 §B）。

@@ -65,6 +65,7 @@
 | **JSF 貸借・逆日歩** | `jsf/{YYYYMMDD}.parquet` | parquet・1日1ファイル | `jsf.load_jsf()` / `borrow_cost_bps_panel()` | `sources/jsf.py` | 日次・前向き蓄積（手動DL） |
 | **TOPIX 段階的ウエイト低減** | `jpx_indices/topix_reduction_events.parquet` | parquet・イベント表（988行） | 直接 read | `examples/update_jpx_topix_lists.py` | 公表毎（第2段階は2026-10〜） |
 | TOPIX 構成銘柄ウェイト（現時点） | `jpx_indices/topixweight_latest.parquet` | parquet・スナップショット | 直接 read | 〃 | 随時 refresh |
+| **TSE 資本コスト開示企業一覧** | `tse_capital_disclosure/disclosure_panel.parquet` | parquet・月次snapshot長形式（29,725行・13月） | 直接 read | `examples/update_tse_capital_disclosure.py` | 月次・前向き蓄積（2025-05〜） |
 
 ---
 
@@ -305,6 +306,20 @@ fingerprint, preregistered_at, completed_at`。**多重検定補正（DSR）と�
 - 取得: `examples/update_jsf.py --raw <手動DLディレクトリ>`（**手動DLのみ・スクレイピングなし**・冪等）。
 - 用途: ショート執行コストの実値化（`engine` の `short_borrow_bps` 既定115bpsを置換）＋逆日歩=踏み上げ信号。
   詳細設計・限界（**limit-reversal は救済不可＝コストで死亡**）・engine統合は `docs/49`。代替＝J-Quants Premium 貸借。
+
+#### `tse_capital_disclosure/disclosure_panel.parquet` — TSE「資本コスト・株価を意識した経営」開示企業一覧
+- 出所: JPX 公表 `equities/follow-up/…/list.xlsx`（公開・無料・robots 許可・ローカル保持のみ）。長形式月次パネル。
+- 列: `month`(月末Timestamp・PIT アンカー), `local_code`(5桁), `sec_code`(4桁), `market`(Prime/Standard),
+  `industry_code`, `company_name`, `disclosed`(bool・**累積 開示状況=開示済**), `considering`(bool・検討中),
+  `status_raw`, `update_date`(開示内容アップデート日・~65%非欠損), `fetched_at`。
+- **PIT**: 各行は当該**月末スナップショット**（原本 sheet 由来）。現在一覧からの遡及構成なし＝PIT 安全。
+  初出月（min month で開示済）＝開示イベントの近似（**左側打切り注意**）。
+- **カバレッジ/限界**: list.xlsx は ~13ヶ月ローリング＝ローカルは **2025-05〜2026-05（13断面）** のみ。
+  **2024 の salience shock（東証要請・2024-01 一覧表）は含まれない**（別途 archive/Wayback backfill が要）。
+  Prime は ~90% 開示で飽和（censored）・**Standard は ~50%＝新規開示が in-window で継続**（fresh event ~250・主に Standard）。
+- 取得: `examples/update_tse_capital_disclosure.py`（冪等・全 snapshot 抽出→(month,code) マージで前向き蓄積・
+  content ベース列検出）。raw は `tse_capital_disclosure/raw/list_{YYYYMMDD}.xlsx`。
+- 用途: governance_event_value（I-9・PBR改革開示イベント条件付き value）＝**value 残差化必須**（F1）。
 
 ---
 

@@ -6,10 +6,12 @@ URL・ライセンス評価・PIT 評価を必須。上位は「取得待ち行�
 🗑rejected（理由必須）
 
 **取得待ち行列（優先度順・/data-acquire の入力）**:
-1. D-2 東証「資本コスト」開示企業一覧（governance_event_value ⏸ 解禁・イベント継続中）
-2. D-3 BTC 現物ETFフロー日次（IDEAS I-48 解禁）
-3. D-4 優待データベース（I-31/I-42 の2案解禁）
-4. D-5 目論見書ロックアップ条項（I-41 解禁・パース build 含む）
+1. D-3 BTC 現物ETFフロー日次（IDEAS I-48 解禁）
+2. D-4 優待データベース（I-31/I-42 の2案解禁）
+3. D-5 目論見書ロックアップ条項（I-41 解禁・パース build 含む）
+4. D-7 TSE 資本コスト開示一覧 **2024-01〜2025-04 の archive backfill**（governance_event_value の salience shock 窓・D-2 の続き）
+5. D-8 EDINET「自己株券買付状況報告書」2016-2024 backfill（buyback_execution_flow を powered 化・I-51）
+- ✅ 取得済: D-1（TOPIX 削減リスト）・**D-2（TSE 資本コスト開示一覧・2025-05〜・2026-07-05）**
 
 ---
 
@@ -20,7 +22,10 @@ URL・ライセンス評価・PIT 評価を必須。上位は「取得待ち行�
   `data/jpx_indices/`・BACKLOG ⬜ topix_staged_flow を解禁。第2段階リスト（2026-08 基準日以降
   公表）は前向き追加待ち。
 
-### D-2 ⬆ 東証「資本コストや株価を意識した経営」開示企業一覧（月次）
+### D-2 ✅ 東証「資本コストや株価を意識した経営」開示企業一覧（月次）
+- **取得済 2026-07-05**（/data-acquire・`data/tse_capital_disclosure/`・記録 research_ops/acquisitions/2026-07-05-tse-capital-disclosure.md）。
+  list.xlsx から**月末snapshot 13断面（2025-05〜2026-05）**を PIT パネル化・governance_event_value を ⬜ 解禁。
+  **限界**: list.xlsx は ~13月ローリング＝**2024 salience shock は未収録**＝**D-7（archive backfill）**へ分離。
 - **出所**: JPX 公表アーカイブ（月次 Excel/PDF・2024-01〜）。**ライセンス**: 公表資料・
   ローカル保持のみ。**PIT**: 公表月がアンカー＝一覧の月次スナップショット系列として再構成可
   （現在の一覧から過去を推定するのは PIT 偽装＝不可・必ず各月の原本を取る）。
@@ -55,5 +60,18 @@ URL・ライセンス評価・PIT 評価を必須。上位は「取得待ち行�
   `data/jsf/` は未蓄積）。過去分のアーカイブ可否は未調査。
 - **解禁**: docs/48 limit_reversal の再評価条件・ショート系全般のコスト実値化（H-3 の精緻化）。
 - **スコア**: 解禁価値3（低EV案件の解禁が主）・PIT堅牢性4・取得コストS（前向き）〜?（過去分）。
+
+### D-7 ⬆ TSE 資本コスト開示一覧の archive backfill（2024-01〜2025-04）
+- **出所**: JPX 過去公表（news 添付 PDF・月次 list の旧版）or Wayback Machine の list.xlsx 履歴。
+  **PIT**: 各月末原本のスナップショット（現行 D-2 と同スキーマ化）。**ライセンス**: 公表資料・ローカル保持のみ。
+- **解禁**: governance_event_value の **2024 salience shock 窓**（I-9 D'Ercole の本丸）。現行 D-2 は 2025-05+ のみで
+  Prime の大規模開示イベント（2024）を左側打切り。**フォーマット改定（2025-01/09 見直し）で列定義が異なる可能性**＝要検証。
+- **スコア**: 解禁価値4・PIT堅牢性3（旧版原本の入手可否が先決）・取得コストM・維持コストS。
+
+### D-8 ⬆ EDINET「自己株券買付状況報告書」2016-2024 backfill
+- **出所**: EDINET API（doc type 指定で日次再取得）。ローカル `edinet/list/` は 2025-01+ のみこの doc type を収録
+  （2016-2024 は 0＝バックフィル除外）。**ライセンス**: EDINET 公表＝問題なし。**PIT**: submitDateTime アンカー＝堅牢。
+- **解禁**: buyback_execution_flow（I-51）を **~18月→~10年に powered 化**（現状は 2025+ の現レジーム内のみで F2/H-4）。
+- **スコア**: 解禁価値4・PIT堅牢性5・取得コストM（~2200日 API 再取得）・維持コストS（夜間で追随）。
 
 （以降、/data-scout が追記）

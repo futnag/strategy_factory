@@ -195,12 +195,14 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
   「補完前（真 NaN 保持）で emit する分岐」を追加（examples/build_phase4_raw.py 等・K=0）。
   これが解ければ NaN→0 baseline vs CS補完 の比較が実行可能。人間が着手を判断。
 
-### ⬜ sjm_per_factor_regime — per-factor regime（SJM 型・浅い状態切替）（旧 TODO #5）
-- **仮説**: ファクター毎に regime を推定し配分を切り替えると、固定 50/50 合成を上回る。
-- **注意**: H-11（小データで複雑モデルは縮退）・H-5（de-risk 形状）に正面から抵触し得る低EV枠。
-  買い持ち超過＋固定合成超過を副次基準に。
-- **出典**: Shu & Mulvey (2024) arXiv:2410.14841＝[IDEAS I-12]。設計指針: 2状態スパースジャンプ
-  モデル（ジャンプペナルティ事前固定）→ 各ファクター active return に個別適用（scout 2026-07-03）。
+### ❌ sjm_per_factor_regime — per-factor regime（SJM 型・浅い状態切替）（旧 TODO #5・判定済み）
+- **状態**: ❌ FAIL（2026-07-05 判定・**Stage-0 KILL・K=0**・scope=`sjm_per_factor_regime`・docs/61 §5）。
+- **結果**: FF Japan 3因子・430ヶ月の best-case でも switched SR **+0.306 < 固定 +0.671**（**F5** de-risk 有害）・
+  placebo(shuffle) mean+0.309/p95+0.462 の内側（**H-18** timing 情報ゼロ）・mom+0.898 に劣後（**H-1**）。
+  遷移 median 5＝推定可＝**H-11 データ不足を反証**＝機構そのものが JP 因子配分で無効。
+- **収穫**: **H-21 新設**（regime 切替は placebo 同値になりがち＝shuffle placebo 必須）。オンライン・ジャンプ
+  モデル基盤は他の regime/timing 候補の Stage-0 に再利用可。**打ち止め**（データ増でも効かないと反証済み）。
+- **出典**: Shu & Mulvey (2024) arXiv:2410.14841＝[IDEAS I-12]。red-team 2026-07-05 revise 全反映。
 
 ### ⏸ tostnet_blockflow — ToSTNeT 超大口フロー（旧 TODO ⑪）
 - **解除条件**: 前向き蓄積が検定に足る件数に達すること（`data/jpx_tostnet/` 2026-06 開始・
@@ -239,4 +241,4 @@ TODO.md（凍結）から継承。詳細な判定は registry 各 scope・docs/0
 
 | 日付 | 候補（slug＋1行） | 棄却理由（Stage-0 チェック番号・H-n） | 証拠 |
 |---|---|---|---|
-| （まだ記録なし） | | | |
+| 2026-07-05 | sjm_per_factor_regime（per-factor regime 切替＝固定超え） | F5（固定未満）＋H-18（placebo 同値＝timing 情報ゼロ）＋H-1（mom 劣後）。H-11 は反証（430月・遷移 median 5＝推定可） | docs/61 §5・K=0 |

@@ -127,7 +127,10 @@ survey 参照／登録日。
   実装リスク。→ jump_tail_beta_xs で検証済み（❌ FAIL・**F3符号逆**＝全セル負だが急落月全勝・docs/55 §5）。
 - **スコア**: 機構4・新規性5・データ適合4・実装コスト2。
 
-### I-12 ⬆ スパースジャンプモデルによるファクター配分（少状態レジーム）
+### I-12 🧪 スパースジャンプモデルによるファクター配分（少状態レジーム）
+- **検証済（2026-07-05・sjm_per_factor_regime）**: ❌ FAIL（Stage-0 K=0 kill・F5＋H-18 placebo 同値）。
+  FF Japan 3因子430月でも切替は固定未満・placebo と区別不能＝timing 情報ゼロ。H-11 は反証（遷移可）。
+  → H-21 新設・docs/61 §5。**打ち止め**。
 - **出典**: Shu & Mulvey (2024) "Dynamic Factor Allocation Leveraging Regime-Switching Signals"
   arXiv:2410.14841（確認済）。
 - **機構**: 各ファクターの active return に2状態スパースジャンプモデル（ジャンプペナルティで

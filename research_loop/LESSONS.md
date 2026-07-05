@@ -59,6 +59,20 @@
 
 ## §4 サイクル記録（append-only・新しいものを下に）
 
+### 2026-07-05 sjm_per_factor_regime — ❌ FAIL（Stage-0 KILL・F5＋H-18 placebo 同値・K=0）※初の Stage-0 K=0 kill
+- 仮説: per-factor regime 切替（2状態 SJM・ジャンプペナルティ固定）が固定等ウエイト合成を上回る
+  （scout I-12・Shu-Mulvey 2024・US 6因子 IR 0.05→0.4-0.5・docs/61）。red-team 2026-07-05 revise 全反映。
+- 結果: **FF Japan 3因子・430ヶ月の best-case でも Stage-0 で KILL（K=0・judge_grid 未実行）**。
+  switched SR **+0.306 < 固定 +0.671**（F5・de-risk 有害）・placebo(shuffle) **mean+0.309/p95+0.462 の内側**
+  （H-18＝timing 情報ゼロ）・mom オーバーレイ +0.898 に劣後（H-1）。rho0.60・乖離88%＝動いて損なう型。
+- 機構1行: **regime 切替は placebo 同値＝情報価値ゼロ**。遷移 median 5（推定可）＝**H-11 データ不足を反証**
+  ＝機構そのものが JP 因子配分で無効 → **H-21 新設**。red-team の Stage-0 義務化で K=0 決着。
+- 収穫: self-contained オンライン・ジャンプモデル（examples/research_sjm_per_factor_regime.py・因果 regime）は
+  他の regime/timing 候補（実時間ボラ管理・日次重み学習等）の Stage-0 に再利用可。H-21 を prior 適用。
+- メタ: operator 規則5・第4起動（red-team）→第5起動（反映+cycle）の連結が設計どおり完走。
+  **Stage-0 K=0 kill は本ループ初**（judge_grid を回さず documented negative＝最安の FAIL＝red-team 内ループの本領）。
+- 成果物: docs/61 §5・examples/research_sjm_per_factor_regime.py。
+
 ### 2026-07-04 topix_staged_flow — ❌ FAIL（F8亜型＋H-3＋容量死・DSR0.00・K=5）※初の自律 operator サイクル
 - 仮説: TOPIX 段階削減（四半期末×10段階・2022-10〜2025-01）の実施日近傍リバーサル（明田2022・
   同日DiD・実効n=10・docs/60）。scout I-32・/data-acquire で解禁・red-team revise 全反映。

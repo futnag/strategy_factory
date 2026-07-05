@@ -75,5 +75,41 @@
   パラメータ事前固定・Stage-0 キル2本義務化（research_ops/redteam/2026-07-05-sjm_per_factor_regime.md）。
 - 既存 prior: H-5（de-risk）・H-1（mom 代理）・H-11（複雑度）・H-15（US 符号反転）・LESSONS §3（2023+ レジーム敵対）。
 
-## §5 結果
-**未実行**（事前登録コミット時点）。
+## §5 結果（2026-07-05 実行）
+
+**判定: ❌ FAIL（Stage-0 KILL・K=0・グリッド未実行）。型 = F5（de-risk＝αでない）＋H-18 placebo 同値。
+per-factor regime 切替は固定等ウエイトを下回り、regime ラベルをシャッフルした placebo と区別不能＝
+「切替」に timing 情報がゼロ。430ヶ月・遷移推定可の best-case でも失敗＝H-11（データ不足）ではない。**
+
+### Stage-0 診断（評価 2000-07..2026-04・310ヶ月・K=0）
+| 系列 | SR(ann) | 平均月次 | vol |
+|---|--:|--:|--:|
+| fixed_EW（常時オン・分母） | **+0.671** | +32.5bps | 5.8% |
+| **switched_SJM（主）** | **+0.306** | +20.7bps | 8.1% |
+| switched_MOM（H-1 統制） | +0.898 | +65.4bps | 8.7% |
+| placebo_shuffle（H-18・単一） | +0.329 | +22.3bps | 8.1% |
+
+- **キル①（H-11 遷移数）= 不成立**: 遷移 Mkt-RF 5 / SMB 7 / HML 5 回（median 5）＝**regime は推定可能**。
+  → 「120ヶ月では1ブレイク過適合」という red-team の H-11 懸念は **430ヶ月では否定**＝データ不足が死因ではない。
+- **キル②-a（F5）= 成立**: switched **+0.306 < 固定 +0.671**（ΔSR **−0.366**）。regime exit が Sharpe を
+  改善するどころか**悪化**（vol 5.8%→8.1%・平均リターンも低下）＝典型的 de-risk 有害。
+- **キル②-b（H-18 placebo 同値）= 成立**: placebo（シャッフル）SR **mean +0.309 / p95 +0.462**。
+  switched +0.306 は **placebo 分布の内側**＝**regime の timing 情報はゼロ**（露出変化の副産物のみ）。
+- **H-1（mom 代理）**: switched **+0.306 ≪ mom オーバーレイ +0.898**（ΔSR −0.593）＝
+  取れる僅かな構造は**素朴 trailing-12m トレンドの方が遥かに良く捉える**。ジャンプモデルの付加価値は負。
+- **H-14 rho 張り付き = 不成立**: rho(switched,fixed)=+0.60・乖離月 88%＝**切替は大きく動くが有害**
+  （「改良が微小で分母に張り付く」型ですらなく、動いて損なう型）。
+
+### 失敗の型と学び
+- **F5＋H-18 placebo 同値の複合**: 「regime 切替が固定を下回り、かつシャッフルと区別不能」＝
+  **切替の情報価値ゼロ**を placebo で一意に識別（H-18 の3度目の勝利）。多数の FAIL と違い曖昧さなし。
+- **H-11 の反証が最大の収穫**: 430ヶ月・遷移推定可の best-case を与えても失敗＝
+  「日本でデータを増やせば regime 切替が効く」仮説を否定。**機構そのものが JP 因子配分で無効**。
+  → **H-21 新設**（regime/状態切替オーバーレイは placebo 同値になりがち＝shuffle placebo を必須検定に）。
+- **red-team 義務化の狙いどおり**: 実行前 K=0 Stage-0 で決着＝正式グリッド（K≤5）を回さず **K 消費 0**。
+- **含意**: IDEAS の他の regime/timing 系候補（実時間ボラ管理・日次重み学習等）にも H-21 を prior 適用。
+  factor timing は JP では「素朴 mom 以上・placebo 以上」を最初に置け（さもなくば着手しない）。
+
+### 成果物
+- examples/research_sjm_per_factor_regime.py（Stage-0 診断・self-contained ジャンプモデル）。
+- レポート HTML なし（K=0 Stage-0 kill＝judge_grid 未実行のため）。

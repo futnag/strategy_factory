@@ -149,3 +149,14 @@ docs/57 §5）、margin_alert_event（docs/53）、index_events_n225（2020+ 消
 制度イベントの解除側をロングで仮説化する場合は、この prior に反する強い根拠を要求する。
 **証拠**: margin_alert_event（Restricted 解除後 −566bps/10日・n=772、DailyPublication 解除後
 −108bps/10日・n=2573。解除ロング3セル net SR −1.7〜−2.0）＝docs/53 §5。
+
+## H-21 レジーム/状態切替オーバーレイは placebo（ラベルシャッフル）と同値になりがち — active
+状態切替（ジャンプモデル/HMM）による因子・資産配分のタイミングは、regime ラベルをシャッフルした
+placebo（露出割合は保存・timing のみ破壊）と Sharpe が区別不能になりやすい＝「切替の情報価値」の多くは
+露出変化の副産物。かつ常時オン（買い持ち等ウエイト）を下回る（F5）ことが多い。**Stage-0 で shuffle
+placebo と常時オンを必須統制**にし、switched が (a) placebo 分布の外 (b) 常時オン超 (c) 素朴 mom
+オーバーレイ以上、の3条件を最初に満たさなければ着手しない。**データ量が十分（遷移推定可能）でも
+timing 情報はゼロたり得る**＝「データを増やせば効く」の反証を先に取れ。
+**証拠**: sjm_per_factor_regime（FF Japan 3因子・430ヶ月・遷移 median 5＝推定可なのに switched
+SR+0.306 < 固定+0.671（F5）・placebo mean+0.309/p95+0.462 の内側（timing 情報ゼロ）・mom+0.898 に
+劣後＝docs/61 §5・Stage-0 K=0 kill）。単一銘柄日足 regime 検知（2026-06 打ち切り）と同族の帰結。

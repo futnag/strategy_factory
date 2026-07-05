@@ -64,6 +64,25 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
 - **出典**: Lou, Polk & Skouras (2019) JFE 134(1):192-213／Bogousslavsky (2021) JFE 141(1):172-194／
   Ho, Hsiao, Lo & Yang (2023) PBFJ 82 102151／Chen & Kawaguchi (2018) IJEF 10(1)（全 WebFetch 確認済）＝[IDEAS I-57]。
 
+### ⬜ corr_risk_beta_xs — index オプション由来 correlation risk への β 横断面ソート
+- **仮説**: N225 オプション由来の**インプライド相関** ρ_t の innovation Δρ に対する各銘柄の rolling β でソートし、
+  低β ロング／高β ショート（dollar-neutral）＝priced correlation risk のスプレッドを取る。方向は DMV(2009) の
+  「相関ショックに強く共変する銘柄ほど高期待リターン」で事前固定（他市場証拠）。
+- **経済的根拠**: index オプションの大きな（負の）分散プレミアム − 個別平均の小さなそれ＝**市場全体の相関ショック**への
+  対価。相関上昇（分散効果が消える局面）に晒される銘柄がプレミアムを要求＝横断面リスクプレミアム。
+- **データ**: ρ_t=[IV²_N225−Σwᵢ²σ̂ᵢ²]/[Σ_{i≠j}wᵢwⱼσ̂ᵢσ̂ⱼ]。分子=N225 ATM IV²（`data/jquants/options_225` or
+  `supplemental/n225_iv`）、分母=構成銘柄の**実現**分散 from J-Quants 全銘柄 OHLCV（2016+）。**`options_225` の初活用**。
+- **新規性**: registry に correlation-risk-β の XS なし。既試 jump_tail_beta_xs（ジャンプテールβ・❌ 符号逆）・
+  low_risk_anomaly・delta_liquidity とは**対象リスク（相関）が別**（F7 差別化を prereg §0 に明記）。
+- **独立性**: XS dollar-neutral＝value/momentum と別軸・**F5 でない**（de-risk オーバーレイでない）。
+- **注意（Stage-0 必須）**: **最大リスク＝H-3/容量**（DMV 自身「摩擦下では exploit 不可」＝CRRA 無摩擦でのみ魅力）→
+  **H-12 型 SR 上限＋月次15bps コスト床を K=0 で先に概算し認定圏か判定**。第二に **F7 交絡**＝RN-index vs
+  realized-single-name の構成が **low_vol/dispersion 因子に縮退**しうる→ivol/low_risk_anomaly/dispersion への
+  直交化を主セルに必須。ATU2021 の JP own-IV null は横断面ゆえ回避（N225-level→N225-return でない）。
+- **出典**: Driessen, Maenhout & Vilkov (2009) "The Price of Correlation Risk: Evidence from Equity Options"
+  JF 64(3):1377-1406, DOI 10.1111/j.1540-6261.2009.01467.x（確認済・SSRN 673425）／model-free 拡張 Bondarenko &
+  Bernard (2024) JFQA 59(7)＝[IDEAS I-62]。
+
 ### ❌ buyback_execution_flow — 自社株買いの「実執行フロー」（発表でなく月次取得状況・判定済み）
 - **状態**: ❌ FAIL（2026-07-05 判定。scope=`buyback_execution_flow`・**Stage-0生存→judge K=3**・docs/62 §5）。
 - **結果**: 最良 bef_exec_ls **DSR0.80**（SR+1.54・raw executor バスケット）だが、**turnover十分位中立 bef_exec_sizematch で

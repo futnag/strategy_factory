@@ -707,4 +707,77 @@ survey 参照／登録日。
     オーバーレイ＝F5(de-risk)/H-21(regime/timing は placebo 同値)の墓場**＝sjm_per_factor_regime(❌)と同型。
 - **survey**: 2026-07-05-xs-noncanonical（Agent 2/3 の near-miss 統合）。登録 2026-07-05。
 
+### I-62 ⬆ 相関リスクβの横断面ソート（index オプション由来 correlation risk・corr_risk_beta_xs）
+- **出典**: Driessen, Maenhout & Vilkov (2009) "The Price of Correlation Risk: Evidence from Equity Options"
+  JF 64(3):1377-1406, DOI 10.1111/j.1540-6261.2009.01467.x（**scout lead WebSearch 確認済**・SSRN 673425）。
+  model-free 拡張: Bondarenko & Bernard (2024) JFQA 59(7):3139-3189。
+- **機構**: index オプションは大きな（負の）分散プレミアムを持つが個別平均は小＝その wedge が**市場全体の相関
+  ショック**への対価。implied correlation の innovation は priced state variable＝相関上昇（分散効果が消える局面）に
+  強く共変する銘柄ほど高期待リターン→Δ(implied corr) への beta ソートでスプレッド。
+- **元市場と主結果**: S&P100（index＋全構成 option＋株）＝priced correlation risk・高α（ただし**摩擦なしの CRRA
+  投資家に魅力**＝DMV 自身が摩擦下 exploit 困難と明言）。
+- **JPデータ**: 真の implied corr は個別 option 不在で不可→**ローカル近似** ρ_t=[IV²_N225−Σwᵢ²σ̂ᵢ²]/[Σ_{i≠j}wᵢwⱼσ̂ᵢσ̂ⱼ]
+  （分子=N225 ATM IV² from `options_225`/`n225_iv`、分母=構成銘柄の**実現**分散 from 全銘柄 OHLCV）。日次 Δρ への
+  rolling beta → 低β ロング/高β ショート dollar-neutral・日次〜週次。**`options_225` の初活用**。
+- **スクリーン**: **H-3/容量が本丸**（DMV「摩擦下 exploit 不可」→ H-12 型 SR 上限＋コスト床を Stage-0 で先に殺す）。
+  **F7 交絡**＝RN-index vs realized-single-name 構成が low_vol/dispersion 因子に縮退しうる→ivol/low_risk_anomaly/
+  dispersion へ直交化を主セルに。ATU2021 の JP own-IV null は**横断面ゆえ回避**（N225-level→N225-return でない）。**F5 でない**。
+- **スコア**: 機構4・新規性4・データ適合4・実装コスト2。
+- **survey**: 2026-07-06-options-xasset（Agent B）。登録 2026-07-06。→ **BACKLOG 昇格**（Stage-0 で容量/交絡を先に殺す条件付き）。
+
+### I-63 💡 クロスアセット債券↔株トレンド相互予測（xasset_bond_equity_tsmom・要債券TRデータ）
+- **出典**: Pitkäjärvi, Suominen & Vaittinen (2020) "Cross-asset signals and time series momentum" JFE 136(1):63-85
+  （**scout lead WebFetch 確認済**）。cross+TSMOM で Sharpe ~+45% vs 素 TSMOM（20ヶ国）。
+- **機構**: slow-moving capital が債券↔株を緩慢リバランス＝**他資産**で実現したトレンドが対象の将来に leak。符号非対称:
+  債券上昇→株**上**、株上昇→債券**下**。
+- **JPデータ**: ⚠ **債券トータルリターン系列がローカルに無い**（外部は FX・US株指数・利回り(fred_macro)のみ＝債券ETF/TR不在）
+  ＝**H-8/データ適合ギャップ**。利回りを債券価格代理にするのは crude。株レグは TOPIX/US 指数で可。
+- **スクリーン**: 債券 TR 代理の質が生命線（F9亜型）。equity→bond 負レグは stock-bond 相関が正転する 2022+ で脆弱。**F5/placebo でない**。
+- **スコア**: 機構4・新規性4・データ適合2（債券TR欠）・実装コスト3。**要データ**: 債券 TR/ETF 系列（→ data_ideas 候補）。
+- **survey**: 2026-07-06-options-xasset（Agent C・top pick）。登録 2026-07-06。→ 💡（債券 TR データ取得で昇格可）。
+
+### I-64 💡 日本株ファクター・リターンのモメンタム（1ヶ月・factor_momentum_jp）
+- **出典**: Cakici, Fieberg, Metko & Zaremba (2025) "Factor momentum versus price momentum..." JBF 170,
+  DOI 10.1016/j.jbankfin.2024.107332／Gérard & Jehl (2025) FAJ, DOI 10.1080/0015198X.2025.2562790（日米欧 pervasive・agent 確認）。
+- **機構**: LS ファクター（value/size/mom/low-vol/quality/investment）の**リターンに正の自己相関**（1ヶ月で最強）＝
+  各ファクターを自身の直近リターンでタイミング／横断面ランク。price momentum に spanning されない独立アノマリー（51ヶ国・日本含む）。
+- **JPデータ**: **JP 全銘柄 2016+ のみ**で4-6標準ファクター LS を構成＝外部不要（thinness 回避）。月次。
+- **スクリーン**: ⚠ **直前 sjm_per_factor_regime(❌)＝ファクター・タイミングを H-21/placebo で棄却したばかり**＝同族リスク
+  （ただし機構は regime 検知でなく**リターン自己相関**＝Ehsani-Linnainmaa 型で別軸）。**H-14**（既存ファクター timing 改良＝
+  proposals 枠化）＋momentum 循環性。**always-on/placebo/mom(12-1) spanning を Stage-0 必須**。
+- **スコア**: 機構3・新規性3・データ適合5・実装コスト3。
+- **survey**: 2026-07-06-options-xasset（Agent C）。登録 2026-07-06。→ 💡（sjm 直後ゆえ保留・H-21 再挑戦は要慎重設計）。
+
+### I-65 💡 マクロ・ファンダメンタルのトレンド（価格でなく・macro_econ_trend）
+- **出典**: Brooks, Ooi, Feilbogen & Akant (2023/2024) "Economic Trend" AQR white paper / SSRN 4710868（agent 確認・AQR）。
+- **機構**: 価格でなく**マクロ・ファンダメンタル**（成長・政策金利・貿易加重FX・リスクセンチメント）のトレンドに順張り＝
+  price TSMOM と低相関で drawdown 分散。グローバル 1970+ で standalone 魅力的 Sharpe。
+- **JPデータ**: 縮約形＝政策=利回り(fred_macro)・センチメント=株超過リターン・貿易=USDJPY・景気=マクロ系列。
+  ただし**プロの GDP 予測改定が無く景気レグは lagged realized に劣化**（H-8）。
+- **スクリーン**: sleeve が slow price trend に縮退するリスク＋US/global-centric。**always-on 実装で F5/H-21 回避**。
+- **スコア**: 機構3・新規性3・データ適合2・実装コスト3。
+- **survey**: 2026-07-06-options-xasset（Agent C）。登録 2026-07-06。→ 💡。
+
+### I-66 💡 米テールリスク→N225/USDJPY 予測（us_tail_to_n225・JP 実証済み but F5/FX）
+- **出典**: Andersen, Todorov & Ubukata (2021) "Tail Risk and Return Predictability for the Japanese Equity Market"
+  J.Econometrics 222(1):344-363（agent が verbatim abstract 確認・RePEc）。
+- **機構**: グローバル・テールは米で price される＝**US left-jump-tail プレミアム上昇→JP の USD 建て超過リターン＋USDJPY
+  を予測**。**日本自身のオプション指標は N225 予測に有意でない**（＝本 repo の重要 governing prior＝N225-IV→N225 型を全て弱化）。
+- **JPデータ**: シグナル=US テール代理（`vix` ローカル有・CBOE SKEW は要追加）／predictand=N225 mini/ETF＋USDJPY レグ。
+- **スクリーン**: ⚠ **F5-prone**（US テール高→JP de-risk＝drawdown 減・Sharpe 不変）＋durable edge は**USD 建て**＝
+  unhedged JPY は FX carry の裏。theme 外（外生 US データ）。
+- **スコア**: 機構3・新規性3・データ適合3・実装コスト3。
+- **survey**: 2026-07-06-options-xasset（Agent B）。登録 2026-07-06。→ 💡（JP 実証済みだが F5/FX 交絡が本丸）。
+
+### I-67 🗑 IV term-slope timer / signed-VRP asymmetry / クロスアセット同月季節性（統合棄却）
+- **棄却理由（dedupe）**:
+  - **iv_termslope_timer**（Johnson 2017 JFQA・VIX term slope）／**signed_vrp_asymmetry**（Kilic-Shaliastovich 2019
+    MS・good/bad VRP）: いずれも **N225-IV→N225-return** 型＝**ATU2021 の JP own-IV null に抵触**＋**F5(de-risk)＋
+    vol_premium_n225(❌)/option_regime_topix(❌) 近接**＋edge は variance-swap/straddle リターン（執行不能）。
+  - **xasset_month_seasonality**（Keloharju-Linnainmaa-Nyberg 2016 JF "Return Seasonalities"）: **I-61 の季節性統合棄却
+    と同族**＝既存 `seasonality` feature 重複＋~9obs/暦月＝placebo リスク最大（H-4）。
+  - **skewness_dispersion**（Babiak-Baruník-Kurka arXiv:2604.07870）: **scout lead が引用を独立確認できず**＝guardrail 3
+    により**記録せず**（survey に near-miss として明記）。market-timing ゆえ F5 も懸念。
+- **survey**: 2026-07-06-options-xasset（Agent B/C near-miss 統合）。登録 2026-07-06。
+
 （以降、/research-scout が追記）

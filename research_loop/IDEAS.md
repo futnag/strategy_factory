@@ -599,4 +599,112 @@ survey 参照／登録日。
   - **ΔROE/収益性変化・dispersion/breadth timing**: H-1/PEAD 代理・H-16(Δ系)・H-5/F5/**H-21(placebo 同値)**の墓場。
 - **survey**: 2026-07-05-regime-durable（Agent A/B/C の near-miss）。登録 2026-07-05。
 
+### I-57 ⬆ オーバーナイト/日中リターン分解の clientele tug-of-war（overnight_intraday_tugofwar）
+- **出典**: Lou, Polk & Skouras (2019) "A tug of war: Overnight versus intraday expected returns"
+  JFE 134(1):192-213, DOI 10.1016/j.jfineco.2019.04.001（**WebFetch 確認済**＝*"profits are either earned
+  entirely overnight (for reversal and a variety of momentum strategies) or entirely intraday, typically
+  with profits of opposite signs"*）＋Bogousslavsky (2019/2021) "The cross-section of intraday and overnight
+  returns" JFE 141(1):172-194, DOI 10.1016/j.jfineco.2021.03.001（**確認済**＝overnight は margin/貸株コストで
+  裁定が引ける＝component の水準が持続）＋**アジア小口市場の transfer prior**: Ho, Hsiao, Lo & Yang (2023)
+  "Momentum investing and a tale of intraday and overnight returns: Evidence from Taiwan" PBFJ 82, 102151,
+  DOI 10.1016/j.pacfin.2023.102151（**確認済**＝*"the IMOM strategy generates significantly positive returns
+  while the OMOM strategy generates significantly negative returns, and that such phenomena exist up to one
+  year"*）＋**日本 clientele 機構の存在証拠**: Chen & Kawaguchi (2018) IJEF 10(1):46-63（J-REIT・foreign/個人 vs
+  国内機関の tug-of-war を JPX で確認・**確認済**）。
+- **機構**: 限界的な取引主体が時間帯で異なる（寄り＝個人/海外の注文がオーバーナイト価格を、引け＝国内機関の
+  リバランスが日中価格を形成）。ある銘柄を寄りで買い続ける clientele はオーバーナイト成分の**継続**を生み、
+  逆側 clientele が日中で押し戻す（cross-period reversal）。close-to-close の合計では相殺され見えにくいが、
+  **各成分は別々に持続・予測可能**＝これが取引対象。overnight = `adj_open_t/adj_close_{t-1}−1`、
+  intraday = `adj_close_t/adj_open_t−1`＝日足OHLCで完全に分解可能（分足不要）。
+- **元市場と主結果**: 米（1993-2013 TAQ）＝firm-level の overnight/intraday 成分は各々多年持続の継続＋相殺
+  reversal。台湾（TWSE・retail 支配＝日本の最良類似）＝IMOM(+)/OMOM(−) が最長12ヶ月持続。
+- **JPデータ**: J-Quants `adj_open/adj_close`（全銘柄2016+）のみ＝完全ローカル。成分を月次窓（≥1M）で累積→
+  XS ランク→月次リバランス。粗い clientele 代理として `investor_types`（市場集計・海外/個人）を条件付けに併用可。
+- **事前スクリーン**: **H-15**（米/台湾証拠＝寄り itayose・清算/信用カレンダーが違う日本で overnight 継続の**符号
+  反転/消滅**が最有力失敗）→ 日本 REIT の機構証拠(Chen-Kawaguchi)で clientele の存在は担保・符号は要事前固定＝
+  両方向 2倍試行前提で K 予算。**F4/短期リバーサル代理**（形成窓を~1日にすると intraday=STR・overnight=1日
+  overreaction に縮退）→ **形成窓 ≥1ヶ月・momentum(12-1)/reversal_1m へのスパニングを主セルに必須**。
+  **H-3**（成分は日次計算だが保有は月次＝15bps 床側で設計可）。anchor が 2019＝H-19 減衰注意（ただし成分持続は
+  構造的でアノマリー減衰と別）。
+- **スコア**: 機構4・新規性5（overnight/intraday 分解は features/registry に皆無）・データ適合5・実装コスト3。
+- **survey**: 2026-07-05-xs-noncanonical（Agent 1・全4引用 WebFetch 確認）。登録 2026-07-05。→ **BACKLOG 昇格**。
+
+### I-58 ⬆ イリュージョン・モメンタム（複利 vs 単純和の知覚ギャップ・illusion_momentum）
+- **出典**: Iwanaga & Hirose (2026) "Illusion momentum and cross-sectional returns" PBFJ 96(C), 103063,
+  DOI 10.1016/j.pacfin.2026.103063（**WebFetch 確認済**＝*"stocks with high illusion momentum tend to have
+  higher future returns than those with low illusion momentum"*・**日米両市場で確認**・機構は
+  *"a cognitive bias where investors mistakenly interpret cumulative sum returns as cumulative returns"*）。
+  ※著者は delta_liquidity（I-29・❌）と同一チーム＝日本 XS の実証に厚い。**2026・日本主標本**。
+- **機構**: シグナル＝ルックバック窓での**複利累積リターン（∏(1+r)−1）と単純和（Σr）の差**。投資家は取引画面/
+  明細に出る「見栄えの良い単純和」を真の複利リターンと誤認する。単純和が複利を過大表示する（＝ボラ drag が
+  大きい）銘柄は「実際より良く見えた」＝その後リターンが**高い**（過小反応/認知バイアス）。著者は標準ファクター・
+  特性と独立で weighting/上場区分/期間/日米に頑健と報告。
+- **元市場と主結果**: 日本＋米国。high−low illusion-momentum の XS スプレッドが既知ファクターで span されず・
+  bear 局面で強化・大型でも残存（headline 数値は ScienceDirect 有料＝abstract のみ確認）。
+- **JPデータ**: J-Quants 日次リターンのみ＝最軽量（1式・月次 XS）。追加データ皆無。
+- **事前スクリーン**: **最大リスク＝ivol/rvol への機械的近接**＝ギャップ≈½·Σr²（ボラ drag）で realized variance の
+  再符号化になり得る→ **ivol/rvol/parkinson とmomentum(12-1)/reversal への直交化を主セルに必須**。日本で高ボラ
+  ティルトは low_risk_anomaly（低ベータ SR−0.7）と符号衝突の懸念（H-15）だが、**本件は日本主標本で方向が既に
+  確立＝H-15 が例外的に事前充足**（scout で稀）。**H-4**（単一 XS 特性 SR~0.4 は認定不能圏＝breadth で緩和・
+  スパニング枠 I-16 導入後が理想）。**F4**（"momentum-related" と自称するが trend 継続でなく knowledge-gap 構造）。
+- **スコア**: 機構3・新規性4・データ適合5・実装コスト5。
+- **survey**: 2026-07-05-xs-noncanonical（Agent 4・WebFetch 確認）。登録 2026-07-05。→ **BACKLOG 昇格**。
+
+### I-59 💡 実現セミベータ（符号付き4分解ダウンサイド共変・realized_semibeta・符号反転 prior 強）
+- **出典**: Bollerslev, Patton & Quaedvlieg (2022) "Realized semibetas: Disentangling 'good' and 'bad'
+  downside risks" JFE 144(1):227-246, DOI 10.1016/j.jfineco.2021.05.056（**確認済**＝*"higher semibetas
+  defined by negative market and negative (positive) asset return covariation predict significantly higher
+  (lower) future returns"*）。⚠ **ex-US 反証**: Li, Li & Su (2024) Applied Economics 57(26):3572-3588,
+  DOI 10.1080/00036846.2024.2337809（**確認済**＝豪州で*"...semibeta BetaNN negatively predict future stock
+  returns, which contradicts findings from the original study by Bollerslev, Patton, and Quaedvlieg"*＝**符号反転**）
+  ＋Atilgan, Bali, Demirtaş & Günaydın (2018) JPM 44(7):39-54, DOI 10.3905/jpm.2018.1.080（**確認済**＝
+  *"downside beta does not explain the cross-sectional differences...in an international setting"*＝日本を含む
+  国際 null・>1.7億日次観測）。
+- **機構**: 市場βを共変の符号で4分解（β^NN 両負・β^PP 両正・β^NP 市場↓銘柄↑＝ヘッジ・β^PN）。平均-セミ分散投資家は
+  下落時共変のみ価格付け＝β^NN は正プレミアム・β^NP（保険）は負。総βでなく**符号付き精緻化**。
+- **元市場と主結果**: 米 CRSP（原論文は5分IntraでrealizedだがXS月次は日次で形成可）。β^NN L/S 正・β^NP 負。
+- **JPデータ**: J-Quants 日次 + TOPIX 日次＝r_i·r_m の符号別和を trailing 6-12M で・月次。**分足不要**（intraday は
+  推定精度を上げるだけ）・回転低（セミβは持続）。
+- **事前スクリーン**: **H-15 が正面かつ ex-US で実証済**＝本 repo は既に BAB（低ベータ SR−0.7）と jump_tail_beta_xs
+  （全セル負）で符号反転を2度観測＝**signed-second-moment リスクプレミアムの日本 long の base-rate は極低**。
+  唯一の未検＝**4分解（β^NN−β^NP スプレッド）が総β/テールβと違う挙動をするか**のみ＝もし着手なら**米の正符号でなく
+  反転/負を expect して事前登録**（H-15 の正しい使い方）。low_risk_anomaly と直交化必須。優先度は低。
+- **スコア**: 機構3・新規性3（失敗済 BAB/tailβ に隣接・4分解のみ未検）・データ適合4・実装コスト3。
+- **survey**: 2026-07-05-xs-noncanonical（Agent 3・Crossref/OpenAlex/PDF 確認）。登録 2026-07-05。
+
+### I-60 💡 配当支払月の予測可能な価格圧力（dividend_month_price_pressure・日本 null 既存＝条件付き再訪）
+- **出典**: Hartzmark & Solomon (2025) "Market-Wide Predictable Price Pressure" AER 115(9):3171-3213,
+  DOI 10.1257/aer.20231725（**WebFetch 確認済**＝*"Buying pressure from dividend payments (announced weeks
+  prior) predicts higher value-weighted market returns, with returns for the top quintile of payment days
+  four times higher than the lowest"*・国際的に成立・reversal 無）＋原 XS: Hartzmark & Solomon (2013)
+  "The Dividend Month Premium" JFE 109(3):640-660（支払予定月の銘柄を買うと ~41bps/月・ex 後40日で−72bps
+  リバーサル＝firm 内の価格圧力・発表/執行ドリフトと別）。⚠ **日本直接 null**: Ta (2015) RBES 3(2):15-20
+  （**確認済**＝*"no statistically significant abnormal returns were found in predicted dividend portfolio"*・
+  1991-2014・2,263社）。
+- **機構**: 配当支払日は数週前に既知＝再投資インフローが時期・規模とも予測可能。配当選好/再投資 clientele が
+  支払前に予測的に買い→支払前上昇・後に部分リバーサル＝**支払「月」に紐づくカレンダー/フロー効果**（利回り水準・
+  momentum・発表ニュースと直交）。日本は支払が3月期末→~6月・9月中間→~12月に**集中**＋2024 NISA 再投資フロー急増＝
+  AER 2025 が「効果を強める」と述べる現代条件。
+- **JPデータ**: fins_summary の `Div*`（DividendPerShare・支払時期近似）で firm 内「支払予定月」指標→当月支払 vs
+  非支払の XS ロング。再投資強度の条件付けは `investor_types`（市場集計・NISA 期フロー）で粗く代理。
+- **事前スクリーン**: **F9 気味＋H-4/H-12**＝6月/12月集中で高フロー日が年数点＝**breadth 極薄・季節的**（thin）＋
+  Ta(2015) の日本 null（pre-NISA）＝**新規アノマリーでなく NISA レジーム条件付き再訪**として扱う。日本の「配当・
+  リバランストレード」で既に裁定されている可能性（F6）。発表軸 shareholder_return（❌ DSR0.24）とは支払月フロー軸で別。
+- **スコア**: 機構3・新規性3・データ適合3・実装コスト3。優先度低（条件付き再訪・breadth 制約）。
+- **survey**: 2026-07-05-xs-noncanonical（Agent 4・AER/RBES WebFetch 確認）。登録 2026-07-05。
+
+### I-61 🗑 salience theory / 銘柄季節性 / ファクター季節性（複数 near-miss の統合棄却）
+- **出典と棄却理由**（再浮上防止の dedupe）:
+  - **salience theory XS**: Cosemans & Frehen (2021) "Salience theory and stock prices" JFE 140(2):460-483
+    （確認済・salient payoff を持つ銘柄は overpriced）。**棄却＝短期リバーサル代理**＝Cakici & Zaremba (2022)
+    "Salience theory and the cross-section of stock returns: International...evidence" JFE 146(2)（49ヶ国・確認済）が
+    salience プレミアムは**主に短期リバーサル＋マイクロキャップに帰属**と実証。既存 features の `reversal_*`/`max_ret`
+    と機構重複＝除外リスト（短期リバーサル）に吸収。日本での増分は薄い（H-6）。
+  - **銘柄季節性（Heston-Sadka 同月効果）**: Heston & Sadka (2008) JFE 87(2)。**棄却＝既存 feature `seasonality`
+    と重複**＋日本履歴~10年＝各銘柄の同月過去観測が少なく検定力不足（H-4）＋`calendar_tom`（❌）隣接。
+  - **ファクター季節性オーバーレイ**: Keloharju, Linnainmaa & Nyberg (2021) "Are return seasonalities due to
+    risk or mispricing?" JFE 139(1)／Mercik et al. の factor-seasonality。**棄却＝スリーブ・タイミング
+    オーバーレイ＝F5(de-risk)/H-21(regime/timing は placebo 同値)の墓場**＝sjm_per_factor_regime(❌)と同型。
+- **survey**: 2026-07-05-xs-noncanonical（Agent 2/3 の near-miss 統合）。登録 2026-07-05。
+
 （以降、/research-scout が追記）

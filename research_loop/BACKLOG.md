@@ -27,6 +27,43 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
 - **出典**: Kaul, Mehrotra & Morck (2000) JF 55(2):893-912（ウエイト調整の自然実験・残存−13%→反転）／
   Tu (2012) IJBFR 6(4):59-71（Nikkei225 入替 price-pressure・確認済）＝[IDEAS I-50]。日経ガイドブック上限比率ルール（2022導入・閾値12→11→10%）。
 
+### ⬜ illusion_momentum — イリュージョン・モメンタム（複利 vs 単純和の知覚ギャップ）
+- **仮説**: ルックバック窓で**単純和 Σr が複利 ∏(1+r)−1 を過大表示する**（＝ボラ drag 大）銘柄は、投資家が
+  単純和を真のリターンと誤認し過小反応する結果、翌月以降リターンが**高い**（high illusion momentum ロング）。
+  方向は Iwanaga-Hirose (2026) が**日本主標本で確立**＝事前固定（他市場覗き見でない）。
+- **経済的根拠**: 取引画面/明細に表示される見栄えの良い単純和への認知バイアス（cumulative sum を
+  cumulative return と誤認）。標準ファクター・特性と独立と原論文が報告・bear 局面で強化・大型でも残存。
+- **データ**: J-Quants 日次リターン（`adj_close` 由来）のみ＝完全ローカル・最軽量（1式・月次 XS）。
+- **新規性**: registry 60 scope・features（`max_ret/ret_skew/ivol/mom_*/reversal_*`）に**複利-単純和ギャップ**は
+  皆無。"momentum-related" と自称するが trend 継続でなく knowledge-gap 構造＝momentum(12-1) と別軸。
+- **独立性**: ⚠ **最大リスク＝ギャップ≈½·Σr²＝realized variance の再符号化**（ivol/rvol への機械的近接）→
+  **主セルで ivol/rvol/parkinson ＋ momentum(12-1)/reversal_1m へ直交化**し残差セルの生存を副次基準に。
+- **注意（Stage-0）**: **H-15 が例外的に事前充足**（日本で方向確立＝符号反転リスクが低い＝本 repo で稀な優位）。
+  ただし高ボラティルトが low_risk_anomaly（低ベータ SR−0.7）と符号衝突しないかを直交化で確認。**H-4**（単一 XS
+  特性 SR~0.4 は minTRL 認定不能圏＝breadth で緩和・スパニング枠 I-16 導入後が理想）。回転は月次で 15bps 床側。
+- **出典**: Iwanaga & Hirose (2026) "Illusion momentum and cross-sectional returns" PBFJ 96(C) 103063,
+  DOI 10.1016/j.pacfin.2026.103063（WebFetch 確認済・日米両市場）＝[IDEAS I-58]。
+
+### ⬜ overnight_intraday_tugofwar — オーバーナイト/日中リターン分解の clientele tug-of-war
+- **仮説**: 銘柄別の**オーバーナイト成分（`adj_open_t/adj_close_{t-1}−1`）と日中成分（`adj_close_t/adj_open_t−1`）**を
+  月次窓（≥1M）で累積し XS ランク→各成分は clientele 継続で持続。方向は LPS(2019)/台湾 Ho(2023) の
+  IMOM(+)/OMOM(−) で事前固定（他市場証拠）。日本での符号は両方向前提で prereg（H-15）。
+- **経済的根拠**: 寄り＝個人/海外、引け＝国内機関の限界主体差＝ある銘柄を寄りで買い続ける clientele が
+  オーバーナイト成分の継続を、逆側が日中で押し戻す cross-period reversal を生む（情報でなく需給 clientele）。
+  日本 J-REIT で foreign/個人 vs 国内機関の tug-of-war が実在確認済（Chen-Kawaguchi 2018）。
+- **データ**: J-Quants `adj_open/adj_close`（全銘柄2016+）のみ＝完全ローカル。粗い clientele 条件付けに
+  `investor_types`（市場集計・海外/個人）を併用可。
+- **新規性**: overnight/intraday 分解は features/registry に**皆無**（close-to-close の mom/reversal/seasonality のみ）。
+  index_events 系・flow 系とも別軸＝behavioral clientele。
+- **独立性**: ⚠ **F4/短期リバーサル代理**（形成窓を~1日にすると intraday=STR・overnight=1日 overreaction に縮退）→
+  **形成窓 ≥1ヶ月固定・momentum(12-1)/reversal_1m へのスパニングを主セルに必須**。
+- **注意（Stage-0）**: **H-15 が本丸**（寄り itayose・清算/信用カレンダー差で overnight 継続の符号反転/消滅が最有力
+  失敗）＝両方向 2倍試行前提で K 予算・グリッド最小化。anchor 2019＝H-19（成分持続は構造的でアノマリー減衰と別と
+  主張できるが減衰も併記）。成分は日次計算・保有は月次＝15bps 床側で設計。日本 common stock への transfer は
+  台湾（retail 支配＝最良類似）を prior に。
+- **出典**: Lou, Polk & Skouras (2019) JFE 134(1):192-213／Bogousslavsky (2021) JFE 141(1):172-194／
+  Ho, Hsiao, Lo & Yang (2023) PBFJ 82 102151／Chen & Kawaguchi (2018) IJEF 10(1)（全 WebFetch 確認済）＝[IDEAS I-57]。
+
 ### ❌ buyback_execution_flow — 自社株買いの「実執行フロー」（発表でなく月次取得状況・判定済み）
 - **状態**: ❌ FAIL（2026-07-05 判定。scope=`buyback_execution_flow`・**Stage-0生存→judge K=3**・docs/62 §5）。
 - **結果**: 最良 bef_exec_ls **DSR0.80**（SR+1.54・raw executor バスケット）だが、**turnover十分位中立 bef_exec_sizematch で

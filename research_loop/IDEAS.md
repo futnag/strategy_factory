@@ -493,4 +493,103 @@ survey 参照／登録日。
   相対トレードは分位ポートフォリオの判定枠に乗らず、特異リスク（上場廃止・方針転換・TOB）が
   支配的。裁量トレード領域＝factory の対象外。
 
+### I-50 ⬆ 日経225 上限係数(PAF)キャッピングの大型株・確定インデックスフロー（nikkei225_cap_flow）
+- **出典**: Tu (2012) "The Price Response to Nikkei 225 Stocks Index Adjustments" IJBFR 6(4):59-71
+  （**確認済**＝Nikkei225 入替は price-pressure でイベント日変動→post で反転・**小型ほど反応大**）＋
+  seminal: Kaul, Mehrotra & Morck (2000) "Demand Curves for Stocks Do Slope Down" JF 55(2):893-912
+  （**ウエイト再定義の自然実験**・残存銘柄 −13%→反転＝price-pressure・prereg §1 で本文再確認）＋
+  日経ガイドブック「上限比率(キャップ)」ルール 2022導入・閾値 12%→11%(23)→10%(24)・7月/1月末判定→10月/4月実施。
+- **機構**: Nikkei225 は株価換算係数(PAF)の価格加重。基準日にウエイトが閾値超の銘柄は実施日に PAF を
+  機械的に切下げ＝**全パッシブが同一既知日に mega-cap を一方向大量売却**（例 Fast Retailing 保有の約11%強制売り）。
+  一時圧力とリバーサル。**対象が指数の最大・最流動・借株容易な mega-cap＝H-20 の明記例外「大型サブセット」を正面から突く**。
+- **元市場と主結果**: 日本。KMM: 残存銘柄 −13%→反転。Tu: 定期入替で price-pressure 確認（ただし large-cap 反応は小型より小）。
+- **JPデータ**: J-Quants 日足（完備）＋Nikkei225 構成・**PAF 履歴**（ガイドブック/係数表＝半公開・軽度 F9）。実施日はルール確定。
+- **スクリーン**: **F7 必須正当化**＝既試 index_events_n225(入替ドリフト❌)・topix_staged_flow(小型 float 死❌) と機構・対象が別
+  （キャッピング＝大型の確定フロー）。**最大リスクは「執行可能だが price-impact が mega-cap ADV に対し小＝F8 の逆(エッジ無)」**
+  （Tu の large-cap 反応小が警告）→ Stage-0 で mega-cap の想定 impact/ADV を H-12 型概算（実効 n も薄い＝年2回×少数）。
+- **スコア**: 機構4・新規性4・データ適合4・実装コスト3。
+- **survey**: 2026-07-05-regime-durable（Agent B）。登録 2026-07-05。→ **BACKLOG 昇格**。
+
+### I-51 ⬆ 自社株買いの「実執行フロー」（発表でなく月次取得状況・buyback_execution_flow）
+- **出典**: Clarke (2022) "It's just a matter of time: Abnormal returns after firms stop repurchasing shares"
+  Finance Research Letters 49, DOI 10.1016/j.frl.2022.103113（**確認済**・米・停止後に有意な正の異常リターン＝
+  執行期間フローが価格形成）。※Agent 提示の Ota-Lau 2021 JJIE は DOI 不一致で**破棄**（実在確認できず）。
+  日本の月次「自己株式の取得状況に関するお知らせ」開示は TSE の事実規則（枠授権と実執行の分離）。
+- **機構**: 日本の自社株買いは取締役会決議＝「枠」授権にすぎず、実買付は複数月にわたり**月次開示**。
+  実執行月は価格非感応な大口買いが持続需要を供給＝プログラム persistence。**発表でなく執行フロー**の
+  月次タイミング軸（forward 設計で H-16 回避）。ロングオンリー・借株不要・大型/中型。
+- **元市場と主結果**: 米（Clarke: 停止後正の異常リターン・frequent/large repurchaser で timing）。日本の執行軸は白地。
+- **JPデータ**: **TDnet 一覧のタイトルのみで執行月を firm-month 特定可**（本文不要）＝実装最軽量。¥額は本文パース(F9部分)。日足で forward。
+- **スクリーン**: **F7 必須**＝既試 shareholder_return(発表ドリフト❌ DSR0.24・PBR改革後反転)・I-10(🗑)・I-47(還元能力) は
+  「発表/能力」軸＝本件は**実執行フロー**の第三軸。**H-15**（Clarke は米＝JP 方向は執行 persistence の機構で防御・要事前固定）・
+  **H-16**（当月執行は当月上昇と同時＝forward 必須）・**F6**（買戻アノマリーは国際的に弱・MPW）。
+- **スコア**: 機構3・新規性4・データ適合5・実装コスト4。
+- **survey**: 2026-07-05-regime-durable（Agent A）。登録 2026-07-05。→ **BACKLOG 昇格**。
+
+### I-52 💡 政策保有株式（発行体側）の水準×削減（strategic_holding_unwind・データ解禁待ち）
+- **出典**: Muramiya, Otogawa & Sakaguchi... (2020) "How cross-shareholding influences financial reporting:
+  Evidence from Japan" Corporate Governance: An International Review 28(5), DOI 10.1111/corg.12333（**確認済**・
+  日本主標本・相互保有は entrenchment/quiet-life）＋Miyajima & Kuroki (2007) RIETI（持合いは firm value に負）。
+  ※**リターン予測の直接 JP 証拠は無**＝方向は「削減軸」で防御（水準/ROE 因果由来）。
+- **機構**: 発行体自身の政策保有（死蔵資本）が ROE/バリュを恒常押下げ＋経営者を市場規律から遮蔽。
+  2018/21 CGコード＋2023 TSE/FSA 圧力（損保3社が全解消コミット）が解消を強制→資本が還元/投資へ→ディスカウント解消。
+  信号: 高・政策保有比率 かつ 削減中(ΔHolding<0)をロング。**I-35（filer 側の売り overhang）とは逆サイド・別符号**。
+- **JPデータ**: **非ローカル**＝有報「政策保有株式」節（銘柄/簿価/目的）を EDINET XBRL から全ユニバース PIT パネル化する
+  **取得タスクが前提**（EDINET-DB MCP `get_cross_shareholdings`＝per-company F9・I-31/I-41 同型）。年次更新。
+- **スクリーン**: **F1 最大の敵**（高保有＝旧経済・低PBR＝value 共変）→ 削減Δ軸・value 残差化・2016-19 regime 外統制が必須。
+  **H-4**（年次信号・レジーム窓~7断面＝小標本・breadth で緩和）。value 独立性は中〜高（削減軸＝cheapness と別）。
+- **スコア**: 機構4・新規性4・データ適合2（取得前提）・実装コスト2。→ **data-acquire 最優先候補**（解禁で昇格判断）。
+- **survey**: 2026-07-05-regime-durable（Agent C）。登録 2026-07-05。
+
+### I-53 💡 空売り「インフロー(貸株フロー)」のリバーサル（shortsale_inflow_reversal・JSF 待ち）
+- **出典**: Takahashi (2010) "Short-sale inflow and stock returns: Evidence from Japan" JBF 34(10):2403-2412,
+  DOI 10.1016/j.jbankfin.2010.03.001（**確認済**・日本主標本・**flow 尺度が level を上回る**・least-shorted の
+  outperformance が約3ヶ月持続・short seller は informed かつ skillful）。
+- **機構**: JSF 貸株残高フローから shorting demand を構成。水準 XS でなくインフロー(Δ)尺度が finer proxy。
+  解消(インフロー減速)側はロングで借株不要。
+- **JPデータ**: **JSF 貸借残高/逆日歩＝未取得(F9)**＝⏸ `limit_reversal_jsf` と同一データブロッカーに相乗り。
+- **スクリーン**: F9(JSF 取得が解禁条件)・**H-16**(インフローΔは同窓価格と同時→残差化)・水準 short_interest_xs(❌) との
+  差分(flow が level を超える増分)でしか裁けない。→ **limit_reversal_jsf の低EV 打ち止め判断を、この flow-reversal 角度で一度見直す学術根拠**。
+- **スコア**: 機構3・新規性3・データ適合2（取得前提）・実装コスト3。
+- **survey**: 2026-07-05-regime-durable（Agent B）。登録 2026-07-05。
+
+### I-54 💡 被買収確率スクリーン：親子上場/MBO（takeover_probability_jp・**方向未固定=保留**）
+- **出典**: Cremers, Nair & John (2009) "Takeovers and the Cross-Section of Returns" RFS 22(4)（SSRN 690185・
+  米・被買収確率高バスケットで年~12%）＋Song & Walkling (2000) "Abnormal returns to rivals…" JFE 55(2):143-171
+  （SSRN 917815・米・標的ライバルの正AR）。⚠ **日本直接証拠は逆**: Chernenko, Foley & Greenwood (2012)
+  "Agency Costs, Mispricing, and Ownership Structure" FM 41(4)（NBER w15910・**確認済**・**日本の上場子会社が主標本**・
+  親持株高＝上場時に割高→マイノリティ**劣後**＝ロング仮説と**逆符号**）。
+- **機構**: 支配親(>30%)を持つ上場子会社/類似ピアを、2023+ ガバナンス圧力（METI 公正M&A・JPX 親子上場 study group）が
+  TOB プレミアムで連続消滅させる＝被買収確率の先回りバスケット。**だが Chernenko が方向を反証**＝level ロングは不可。
+- **JPデータ**: `large_holdings.parquet`（親>30% 保有の上場子を bulk 抽出）＋PIT PBR/ROE＋TDnet(公開買付)。ほぼローカル。
+- **スクリーン**: **F3/方向未固定が本丸**（日本直接証拠が逆＝H-15 類似の保留）→ 固定するなら level でなく resolution/削減
+  イベント軸に限定・post-2019 の JP リターン証拠待ち。F1(ピアも低PBR)・F8(年間ディール N≈20-40 の lumpy)・H-17(TOB=ジャンプ)。
+  tob_arb(❌・発表後裁定)とは発表前スクリーンで別軸。
+- **スコア**: 機構3・新規性4・データ適合4・実装コスト3（但し**方向未固定で昇格不可**）。
+- **survey**: 2026-07-05-regime-durable（Agent A cand2/3・Agent C の反証統合）。登録 2026-07-05。
+
+### I-55 💡 第三者割当増資の割当先異質性（third_party_allotment_signal・本文パース待ち）
+- **出典**: 割当先タイプで告知効果の符号が分岐（戦略投資家=certification 正／ファンド・MSCB=希薄化負）。
+  Otsubo (2017) PBFJ「private placement underwriting Japan」（search 確認・割当先動機・**prereg で符号定義を原文確認必須**）。
+  死のスパイラル MSCB は PBFJ「Death spiral issues」実在も対象＝小型トキシック＝F8/H-7 で棄却側。
+- **機構**: 公募(I-38)と異なり特定投資家への発行＝割当先タイプで符号が割当先依存。段階的織り込みの異質ドリフト。
+- **JPデータ**: EDINET 臨時報告書/届出書（提出時刻メタはローカル・**割当先/ディスカウント/ロックアップは本文パース=F9**）。
+- **スクリーン**: F9(本文パース必須)・H-7(希薄化ショート脚が value ロングと衝突→certification ロング側に限定)・H-17。
+  I-41(ロックアップ)・governance 系と本文パース基盤を共有＝取得タスク相乗り。
+- **スコア**: 機構3・新規性4・データ適合2（本文パース前提）・実装コスト2。
+- **survey**: 2026-07-05-regime-durable（Agent A cand4）。登録 2026-07-05。
+
+### I-56 🗑 発行/買戻アノマリー・立会外分売（複数 near-miss の統合棄却）
+- **出典と棄却理由**（再浮上防止の dedupe）:
+  - **net share issuance（純株式発行 ΔShares）**: McLean-Pontiff-Watanabe (2009) JFE 94(1)（日本含む・確認済）。
+    **棄却=レジーム非特異**（発行アノマリーは恒常的＝「なぜ 2023+」を機構で説明できない）＋買戻側は国際的に弱＋
+    CZ60特徴(phase4)に既収載の可能性。
+  - **buyback_characteristic（発表イベント特性）**: Sakawa et al. (2025) PBFJ「Do buyback anomalies explain…Japan」
+    （確認済・**発表研究**）。**棄却=既試 shareholder_return(❌)・I-10(🗑) と dup ＋ F1(現金リッチ value)**。
+    ※実行フロー軸(I-51)は別＝これは発表軸ゆえ棄却。
+  - **立会外分売(off_auction_distribution)**: **査読出典なし**（JPX スケジュール公表＋実務系のみ）＝
+    guardrail3（実在査読出典必須）で候補化見送り・F6(retail 既知で織り込み速)。
+  - **ΔROE/収益性変化・dispersion/breadth timing**: H-1/PEAD 代理・H-16(Δ系)・H-5/F5/**H-21(placebo 同値)**の墓場。
+- **survey**: 2026-07-05-regime-durable（Agent A/B/C の near-miss）。登録 2026-07-05。
+
 （以降、/research-scout が追記）

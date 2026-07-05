@@ -510,7 +510,10 @@ survey 参照／登録日。
 - **スコア**: 機構4・新規性4・データ適合4・実装コスト3。
 - **survey**: 2026-07-05-regime-durable（Agent B）。登録 2026-07-05。→ **BACKLOG 昇格**。
 
-### I-51 ⬆ 自社株買いの「実執行フロー」（発表でなく月次取得状況・buyback_execution_flow）
+### I-51 🧪 自社株買いの「実執行フロー」（発表でなく月次取得状況・buyback_execution_flow）
+- **🧪 判定（2026-07-05・scope=buyback_execution_flow・docs/62 §5）**: **❌ FAIL**。EDINET 自己株券買付状況報告書
+  （TDnet でなく＝red-team 訂正）で Stage-0 生存も judge K=3 で best DSR0.80、**turnover 中立 SR−0.07・DSR0.21
+  ＝size/liquidity 交絡**（F7亜型・H-22 新設）。執行軸も否定（発表軸 shareholder_return❌ に続く自社株買い3軸目棄却）。
 - **出典**: Clarke (2022) "It's just a matter of time: Abnormal returns after firms stop repurchasing shares"
   Finance Research Letters 49, DOI 10.1016/j.frl.2022.103113（**確認済**・米・停止後に有意な正の異常リターン＝
   執行期間フローが価格形成）。※Agent 提示の Ota-Lau 2021 JJIE は DOI 不一致で**破棄**（実在確認できず）。

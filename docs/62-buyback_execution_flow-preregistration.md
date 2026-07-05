@@ -58,5 +58,28 @@
   H-16 forward・F7 統制・Stage-0 K=0 義務化（research_ops/redteam/2026-07-05-buyback_execution_flow.md）。
 - 既試 shareholder_return（発表ドリフト❌ DSR0.24・docs/03 §6.17）との識別が F7 の核。
 
-## §5 結果
-**未実行**（事前登録コミット時点）。
+## §5 結果（2026-07-05 判定）
+**❌ FAIL — 最良 bef_exec_ls でも DSR=0.80 < 0.95。超過は執行フロー特異でなく size/liquidity 交絡。**
+
+**Stage-0（K=0・生存）**: 13月（2025-06→2026-06・executor 6,510 filings/1,267社）。
+生spread(exec−univ) **+0.38%/月**（IR1.39・hit69%）／プラセボ片側 **p=0.018**（null の外）／
+turnover十分位中立 **+0.12%/月**（IR**0.40**・hit54%）＝3ゲート全通過 → grid へ。
+
+**Stage-1 judge_grid（K=3・costs15bps・execution_lag=1・adv容量・値幅ロック）**:
+
+| strategy | SR(ann) | PSR | **DSR** | minTRL(月) |
+|---|--:|--:|--:|--:|
+| bef_exec_ls（対ユニバース） | +1.54 | 0.94 | **0.80** | 261 |
+| bef_persist_w2（2ヶ月連続） | +1.20 | 0.89 | **0.68** | 437 |
+| bef_exec_sizematch（turnover中立） | −0.07 | 0.47 | **0.21** | ∞ |
+
+**αの帰属（決定的）**: raw の bef_exec_ls は DSR0.80（本ループ全試行で trend_structure 0.92 に次ぐ接近）
+だが、**turnover十分位中立にすると SR −0.07・DSR 0.21**＝executor バスケットの超過は**執行フロー特異でなく
+size/liquidity ティルト**（自社株買い執行企業＝大型・高流動で、当窓で大型が優位）。Stage-0 の turnover中立
++0.12%（IR0.40）が既に foreshadow し、judge の 15bps コストがそれを負に落とした。**gross 機構は size 交絡で
+説明し尽くされ、執行フロー機構は非確認**。in-regime 13月＝minTRL 261月に遠く及ばず認定は構造的に不能。
+
+**失敗型**: F7亜型（size/liquidity 交絡）。**新規教訓 H-22**（イベント・バスケット生LSの size/liquidity 交絡＝
+size中立セルで帰属を確定せよ）を HEURISTICS に追加。
+**フォローアップ**: D-8（EDINET 2016-2024 backfill）で powered 化しても、size中立αが無い限り再訪不可
+（打ち止め寄り）。発表軸 shareholder_return❌（DSR0.24）に続き、執行軸も否定＝自社株買い3軸目も棄却。

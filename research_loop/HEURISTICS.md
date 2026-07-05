@@ -160,3 +160,14 @@ timing 情報はゼロたり得る**＝「データを増やせば効く」の�
 **証拠**: sjm_per_factor_regime（FF Japan 3因子・430ヶ月・遷移 median 5＝推定可なのに switched
 SR+0.306 < 固定+0.671（F5）・placebo mean+0.309/p95+0.462 の内側（timing 情報ゼロ）・mom+0.898 に
 劣後＝docs/61 §5・Stage-0 K=0 kill）。単一銘柄日足 regime 検知（2026-06 打ち切り）と同族の帰結。
+
+## H-22 イベント・バスケットの生 LS は「誰がそのイベントをするか」の size/liquidity 組成に汚染される — active
+イベント（自社株買い執行・大量保有・開示遵守 等）を出す企業は概して**大型・高流動**＝raw の
+event-basket ロング × ユニバース・ショートは event 特異αでなく **size/liquidity ティルト**を拾う。
+プラセボ（H-18）は「イベントの有無」を検定するが、size/liquidity 交絡は素通しする（イベント銘柄は
+実在し null の外に出る＝p 値は有意になりうる）。**Stage-0 と judge の両方で turnover（または時価総額）
+十分位中立セルを必須同梱**し、raw と size中立の DSR/SR の差でαの帰属を確定せよ。size中立で SR≈0 なら
+「イベント」でなく「イベントをする企業の属性（size/liquidity）」が効いていた＝棄却。
+**証拠**: buyback_execution_flow（executor raw bef_exec_ls DSR**0.80**/SR+1.54・プラセボ p=0.018 で「有意」に
+見えるが、turnover十分位中立 bef_exec_sizematch で **SR−0.07・DSR0.21**＝執行フロー特異αは無・純 size 交絡＝
+docs/62 §5・K=3）。H-18 が拾えない交絡軸＝別統制が要る、が要点。

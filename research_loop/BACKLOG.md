@@ -27,21 +27,15 @@ registry の scope 一覧（`loop_status.py`）の3つに対して行う。
 - **出典**: Kaul, Mehrotra & Morck (2000) JF 55(2):893-912（ウエイト調整の自然実験・残存−13%→反転）／
   Tu (2012) IJBFR 6(4):59-71（Nikkei225 入替 price-pressure・確認済）＝[IDEAS I-50]。日経ガイドブック上限比率ルール（2022導入・閾値12→11→10%）。
 
-### ⬜ buyback_execution_flow — 自社株買いの「実執行フロー」（発表でなく月次取得状況）
-- **仮説**: 自社株買いプログラムの**実執行月**（月次「取得状況」開示で確認）に active な firm を、**翌月** forward で
-  ロングすると正のドリフト（執行フローの persistence）。方向は Clarke(2022) の「執行/停止→正の異常リターン」で事前固定。
-- **経済的根拠**: 日本の自社株買いは取締役会決議＝「枠」授権にすぎず、実買付は複数月にわたり価格非感応な大口買いを供給。
-  月次開示で「現在も買っている」ことが遅れて確認され、需給支持フローが翌期にも persist（H-17 適合＝ジャンプでなく持続フロー）。
-- **データ**: **TDnet 一覧のタイトルのみ**で「自己株式の取得状況」月次開示＝実執行 firm-month を特定可（本文不要＝実装最軽量）。
-  取締役会決議で枠開始日。¥額は本文パース（副次・タイミング軸は title で完結）。J-Quants 日足で forward。
-- **新規性**: **実執行フローの月次タイミング**軸＝registry/IDEAS に無い第三軸。既試 shareholder_return（発表ドリフト❌ DSR0.24）・
-  I-10(🗑)・I-47(還元能力) はいずれも「発表/能力」軸＝本件は「執行」軸（F7 差別化を prereg §0 に明記）。
-- **独立性**: ロングオンリー・借株不要・大型/中型＝JP小口が月次執行可能（H-3/H-20 回避）。
-- **注意**: **H-16 が本丸**＝当月執行は当月上昇と同時（買いが上昇の原因）→ 必ず **forward（翌月）**設計。
-  **H-15**（Clarke は米＝JP 方向は執行 persistence 機構で防御・要事前固定）・**F6**（買戻アノマリーは国際的に弱・MPW）・
-  発表ドリフト死(shareholder_return)との識別のため統制セル（発表のみ vs 執行中）を H-18 で同梱推奨。
-- **出典**: Clarke (2022) "It's just a matter of time…" Finance Research Letters 49, DOI 10.1016/j.frl.2022.103113
-  （確認済・米）＝[IDEAS I-51]。日本の月次「取得状況」開示は TSE 事実規則。
+### ❌ buyback_execution_flow — 自社株買いの「実執行フロー」（発表でなく月次取得状況・判定済み）
+- **状態**: ❌ FAIL（2026-07-05 判定。scope=`buyback_execution_flow`・**Stage-0生存→judge K=3**・docs/62 §5）。
+- **結果**: 最良 bef_exec_ls **DSR0.80**（SR+1.54・raw executor バスケット）だが、**turnover十分位中立 bef_exec_sizematch で
+  SR−0.07・DSR0.21**＝raw の超過は執行フロー特異でなく **size/liquidity 交絡**（買付執行企業＝大型・高流動）。**F7亜型**。
+  データ源は red-team で TDnet→**EDINET 自己株券買付状況報告書**に訂正（6,510 filings/1,267社/2025-06〜2026-06・submit アンカー）。
+- **収穫**: **H-22 新設**（イベント・バスケット生LSの size/liquidity 交絡＝size中立セルで帰属を確定・プラセボでは拾えない）。
+  発表軸 shareholder_return❌（DSR0.24）に続き執行軸も否定＝自社株買い3軸目も棄却。**再訪条件**: D-8（EDINET 2016-2024 backfill）で
+  powered 化しても size中立αが無い限り不可＝実質打ち止め。executor 抽出スクリプトは backfill 時に再利用可。
+- **出典**: Clarke (2022) FRL 49, DOI 10.1016/j.frl.2022.103113（確認済・米）＝[IDEAS I-51 🧪]。
 
 ### ❌ margin_alert_event — 信用規制イベントの前後ドリフト（旧 TODO ⑤(b)・判定済み）
 - **状態**: ❌ FAIL（2026-07-03 判定。scope=`margin_alert_event`・K=6・docs/53 §5）。
@@ -263,7 +257,7 @@ TODO.md（凍結）から継承。詳細な判定は registry 各 scope・docs/0
   空売り残高XS(short_interest)・サイズ（生存者バイアス由来と判明）
 - **イベント系**: 自社株買い＋増配(shareholder_return)・保守的予想バイアス(guidance_bias)・
   開示タイミング(disclosure_timing)・指数入替(index_events_n225)・TOB裁定(tob_arb・フォワード監視は別枠で継続)・
-  アクティビスト・ストップ高リバーサル(limit_reversal, docs/48)
+  アクティビスト・ストップ高リバーサル(limit_reversal, docs/48)・自社株買い実執行フロー(buyback_execution_flow, docs/62・size交絡)
 - **タイミング/マクロ系**: 海外フロー→TOPIX(flow_topix_timing)・スマートマネー乖離(flow_divergence_topix)・
   オプションIVレジーム(option_regime_topix)・FX/金利×セクター(macro_sector_rotation)・
   国債ターム・キャリー(bond_term_carry)・ボラ売り/VRP(vol_premium_n225)

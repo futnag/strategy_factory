@@ -59,6 +59,20 @@
 
 ## §4 サイクル記録（append-only・新しいものを下に）
 
+### 2026-07-05 buyback_execution_flow — ❌ FAIL（size/liquidity 交絡・F7亜型・best DSR0.80・K=3）※raw が本ループ2番目の接近だが交絡
+- 仮説: EDINET「自己株券買付状況報告書」提出（＝実執行中）企業は t+1 forward 超過（scout I-51・Clarke2022 FRL・
+  執行フロー persistence・docs/62）。red-team 2026-07-05 revise 全反映（データ源 TDnet→EDINET 訂正・submit アンカー・in-regime）。
+- 結果: **Stage-0 生存**（生spread+0.38%/月・プラセボ p=0.018・turnover中立+0.12%）→ judge_grid（K=3）で **best bef_exec_ls
+  DSR0.80 < 0.95**。決め手＝**turnover十分位中立 bef_exec_sizematch で SR−0.07・DSR0.21**＝raw の超過は執行フロー特異でなく
+  **size/liquidity ティルト**（買付執行企業＝大型・高流動）。in-regime 13月＝minTRL 261月＝認定構造的に不能。
+- 機構1行: **プラセボは通るが size中立で消える**＝「イベント」でなく「イベントをする企業の属性」が効いていた → **H-22 新設**。
+  発表軸 shareholder_return❌（DSR0.24）に続き**執行軸も否定**＝自社株買い3軸目（発表/能力/執行）も棄却。
+- 収穫: Stage-0 に turnover中立セルを必須化（H-22）＝プラセボ（H-18・イベント有無）と別軸の統制。executor 抽出
+  （examples/research_buyback_execution_flow.py）は D-8 backfill 時に再利用可（ただし size中立αが無い限り再訪不可）。
+- メタ: operator 規則5・第7起動（red-team）→本起動（反映+cycle）。**本ループ初の「Stage-0 生存→judge FAIL」**
+  （sjm は Stage-0 kill）。raw DSR0.80 は trend_structure 0.92 に次ぐ接近だが、統制セルが偽陽性を解体した好例。
+- 成果物: docs/62 §5・examples/research_buyback_execution_flow.py・data/reports/buyback_execution_flow.html。
+
 ### 2026-07-05 sjm_per_factor_regime — ❌ FAIL（Stage-0 KILL・F5＋H-18 placebo 同値・K=0）※初の Stage-0 K=0 kill
 - 仮説: per-factor regime 切替（2状態 SJM・ジャンプペナルティ固定）が固定等ウエイト合成を上回る
   （scout I-12・Shu-Mulvey 2024・US 6因子 IR 0.05→0.4-0.5・docs/61）。red-team 2026-07-05 revise 全反映。

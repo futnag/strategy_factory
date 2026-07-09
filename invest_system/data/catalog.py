@@ -71,10 +71,31 @@ class RefreshSpec:
     maintained: bool = True
 
 
+def _merge_keep_history(cache, prior: pd.DataFrame, fetched: pd.DataFrame,
+                        keys: list[str], sort: str) -> int:
+    """refresh の取得範囲が購読ローリング窓で縮んでも、窓外の既存履歴を失わないための
+    マージ保存。fetch 側（_fetch_markets, refresh=True）はキャッシュを上書きするため、
+    取得前に読んだ prior と統合して書き戻す。重複は新しい取得を優先（keep="last"）。"""
+    if prior.empty or "_empty" in prior.columns:
+        return len(fetched)
+    if fetched.empty:  # 取得空（障害等）で既存履歴をマーカー上書きしない
+        prior.to_parquet(cache)
+        return len(prior)
+    merged = pd.concat([prior, fetched], ignore_index=True)
+    subset = [k for k in keys if k in merged.columns]
+    if subset:
+        merged = merged.drop_duplicates(subset=subset, keep="last")
+    merged = merged.sort_values(sort, ignore_index=True)
+    merged.to_parquet(cache)
+    return len(merged)
+
+
 def _refresh_investor_types(start: str, until: str) -> int:
-    """投資部門別を全履歴で再取得し固定ファイルへ（週次・軽量＝1呼び出し）。"""
+    """投資部門別を購読窓の範囲で再取得し固定ファイルへ（窓外の既存履歴はマージ保持）。"""
+    cache = jq._CACHE / "investor_types" / "all.parquet"
+    prior = pd.read_parquet(cache) if cache.exists() else pd.DataFrame()
     df = jq.fetch_investor_types(frm=start, to=until, refresh=True, canonical=True)
-    return len(df)
+    return _merge_keep_history(cache, prior, df, ["Section", "StDate", "EnDate"], "EnDate")
 
 
 def _index_codes() -> list[str]:
@@ -93,10 +114,13 @@ def _index_codes() -> list[str]:
 
 
 def _refresh_indices(start: str, until: str) -> int:
-    """各指数を全履歴で再取得（銘柄別・各1回）。"""
+    """各指数を購読窓の範囲で再取得（銘柄別・各1回。窓外の既存履歴はマージ保持）。"""
     rows = 0
     for c in _index_codes():
-        rows += len(jq.fetch_index_bars(code=c, frm=start, to=until, refresh=True))
+        cache = jq._CACHE / "indices" / f"code_{c}.parquet"
+        prior = pd.read_parquet(cache) if cache.exists() else pd.DataFrame()
+        df = jq.fetch_index_bars(code=c, frm=start, to=until, refresh=True)
+        rows += _merge_keep_history(cache, prior, df, ["Date", "Code"], "Date")
     return rows
 
 

@@ -16,6 +16,7 @@ from typing import Optional
 
 import pandas as pd
 
+from ..config import get_env
 from .catalog import DATASETS, REFRESH_DATASETS, Dataset
 from .sources import jquants as jq
 
@@ -126,11 +127,18 @@ class DataUpdater:
             report[name] = {"missing": len(miss), "fetched": got}
             if verbose:
                 print(f"  {name}: 欠損{len(miss)} → 取得{got}")
-        # range-refresh：全体を最新化（指数・投資部門別）
+        # range-refresh：全体を最新化（指数・投資部門別）。
+        # 取得開始は購読のローリング履歴窓（Standard=10年）に追随させる：固定 start が
+        # 窓外に落ちると J-Quants が HTTP 400 を返す（2026-06 に顕在化）。窓外に落ちた
+        # 既存キャッシュの履歴は catalog 側の各 refresh がマージ保持する（消さない）。
+        years = int(get_env("J_QUANTS_HISTORY_YEARS") or 10)
+        win_start = (until - pd.DateOffset(years=years)
+                     + pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+        start_s = max(self.start, win_start)
         for name in [n for n in names if n in self.refresh_datasets]:
             spec = self.refresh_datasets[name]
             try:
-                rows = spec.refresh(self.start, until_s)
+                rows = spec.refresh(start_s, until_s)
                 report[name] = {"refreshed_rows": rows}
                 if verbose:
                     print(f"  {name}: 再取得 {rows:,} 行")

@@ -13,7 +13,8 @@ from invest_system.config import get_env  # noqa: E402
 # ==================== 設定 ====================
 FRED_API_KEY = get_env("FRED_API_KEY") or ""  # .env から読込（秘密はコードに書かない）
 START_DATE = "2016-06-01"
-END_DATE = "2026-06-09"
+# 終了日は実行日既定（固定日付だと鮮度が静かに止まる）。再現用に SUPPLEMENTAL_END で固定可
+END_DATE = get_env("SUPPLEMENTAL_END") or pd.Timestamp.today().strftime("%Y-%m-%d")
 OUTPUT_DIR = "./data/supplemental"  # 保存先ディレクトリ
 
 # FREDシリーズ（日本・グローバルで有用なもの）

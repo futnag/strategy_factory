@@ -132,16 +132,54 @@ def _mtime(path: Path) -> str:
     return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
 
 
+def _content_date(path: Path, lag_days: int = 7) -> str:
+    """parquet の *実データ日付*（index 最大）で鮮度を出す。path はファイルでもディレクトリでも可。
+
+    mtime を使ってはいけない：mtime は「いつ書いたか」であって「中身がいつまでか」ではない。
+    固定 END_DATE のまま再取得すると mtime だけ新しくなり鮮度停止を隠す（2026-07 に実際に発生）。
+    さらにディレクトリの mtime は NTFS ではファイル追加/削除でしか動かず、上書き更新を検知できない。
+    ディレクトリ指定時は最新日に加えて「停止しているファイル数」も出す（一部キーだけの
+    鮮度停止＝更新スクリプトが一部しか面倒を見ていない状態を可視化する）。
+    """
+    if not path.exists():
+        return "（不在）"
+    try:
+        import pandas as pd
+    except Exception:  # noqa: BLE001
+        return _mtime(path)
+
+    files = [path] if path.is_file() else sorted(path.glob("*.parquet"))
+    dates: dict[str, "pd.Timestamp"] = {}
+    for f in files:
+        try:
+            idx = pd.read_parquet(f, columns=[]).index
+            if len(idx):
+                dates[f.name] = pd.Timestamp(idx.max())
+        except Exception:  # noqa: BLE001
+            continue
+    if not dates:
+        return "（空）"
+
+    newest = max(dates.values())
+    out = f"{newest:%Y-%m-%d}"
+    if len(dates) > 1:
+        stale = {n: t for n, t in dates.items() if t < newest - pd.Timedelta(days=lag_days)}
+        out += f"（{len(dates)}ファイル）"
+        if stale:
+            out += f"  ⚠ 停止 {len(stale)}/{len(dates)}件（最古 {min(stale.values()):%Y-%m-%d}）"
+    return out
+
+
 def show_freshness(deep: bool = False) -> None:
     _section("データ鮮度（data/）")
     d = ROOT / "data"
     rows = [
         ("株価 by-date（jquants/daily/）", _newest(d / "jquants" / "daily", "*.parquet")),
         ("財務（jquants/fins_summary/）", _newest(d / "jquants" / "fins_summary", "*.parquet")),
-        ("wide ストア（adj_close.parquet mtime）",
-         _mtime(d / "processed" / "equities" / "wide" / "adj_close.parquet")),
-        ("外部価格（investers/ mtime）", _mtime(d / "investers")),
-        ("マクロ（supplemental/ mtime）", _mtime(d / "supplemental")),
+        ("wide ストア（adj_close 実日付）",
+         _content_date(d / "processed" / "equities" / "wide" / "adj_close.parquet")),
+        ("外部価格（investers/ 実日付）", _content_date(d / "investers")),
+        ("マクロ（supplemental/ 実日付）", _content_date(d / "supplemental")),
         ("EDINET 一覧（edinet/list/）", _newest(d / "edinet" / "list", "*.parquet")),
         ("TDnet（tdnet/）", _newest(d / "tdnet", "*.parquet")),
         ("ToSTNeT（jpx_tostnet/）", _newest(d / "jpx_tostnet", "*.parquet")),
